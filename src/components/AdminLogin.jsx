@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, X, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Lock, X, ArrowRight, AlertTriangle } from 'lucide-react';
 
 export default function AdminLogin({ isOpen, onClose, onLoginSuccess }) {
   const [passcode, setPasscode] = useState('');
@@ -38,7 +38,7 @@ export default function AdminLogin({ isOpen, onClose, onLoginSuccess }) {
     <div className="modal-backdrop">
       <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border border-[#E2D2C0] animate-fade-in">
         
-        {/* Modal Header in Logo Mocha Brown */}
+        {/* Modal Header */}
         <div className="bg-[#5C3E2E] text-white p-6 text-center relative">
           <button
             onClick={onClose}
@@ -77,16 +77,12 @@ export default function AdminLogin({ isOpen, onClose, onLoginSuccess }) {
               type="password"
               required
               autoFocus
-              placeholder="Default: mactea123"
+              placeholder="Enter staff passcode"
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
               className="w-full px-4 py-3 bg-[#F5ECE1] border border-[#E2D2C0] rounded-xl text-sm font-semibold focus:outline-none focus:border-[#C89445] focus:ring-2 focus:ring-[#C89445]/20"
             />
           </div>
-
-          <p className="text-[11px] text-[#6E5B52] text-center italic">
-            Default staff access passcode is <code className="bg-[#EAD9C6] px-1.5 py-0.5 rounded text-[#5C3E2E] font-mono font-bold">mactea123</code>
-          </p>
 
           <button
             type="submit"
