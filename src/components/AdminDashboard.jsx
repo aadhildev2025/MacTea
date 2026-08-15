@@ -1,0 +1,458 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  ShoppingBag, Clock, CheckCircle2, Volume2, VolumeX, 
+  Search, RefreshCw, Printer, ShieldCheck, 
+  BookOpen, BarChart3, QrCode, LogOut, Trash2
+} from 'lucide-react';
+import { useOrder } from '../context/OrderContext';
+import MenuManager from './MenuManager';
+import Analytics from './Analytics';
+import QRCodeModal from './QRCodeModal';
+
+export default function AdminDashboard({ onLogout }) {
+  const { playNotificationSound } = useOrder();
+  
+  const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'menu', 'analytics'
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+
+  // Filters
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [tableFilter, setTableFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [lastOrderId, setLastOrderId] = useState(null);
+
+  const fetchOrders = async () => {
+    try {
+      const res = await fetch('/api/orders');
+      if (res.ok) {
+        const data = await res.json();
+        
+        if (data.length > 0) {
+          const newest = data[0];
+          if (lastOrderId && newest.id !== lastOrderId && newest.status === 'New') {
+            if (soundEnabled) {
+              playNotificationSound('new_order');
+            }
+          }
+          setLastOrderId(newest.id);
+        }
+
+        setOrders(data);
+      }
+    } catch (e) {
+      console.error('Error fetching orders:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 3000);
+    return () => clearInterval(interval);
+  }, [soundEnabled, lastOrderId]);
+
+  const handleUpdateStatus = async (orderId, newStatus) => {
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (res.ok) {
+        fetchOrders();
+      }
+    } catch (e) {
+      console.error('Error updating status:', e);
+    }
+  };
+
+  const handleRemoveOrder = async (orderId) => {
+    if (!window.confirm(`Are you sure you want to remove Order ${orderId} from Live Orders?`)) return;
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        fetchOrders();
+      }
+    } catch (e) {
+      console.error('Error deleting order:', e);
+    }
+  };
+
+  const handlePrintTicket = (order) => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Kitchen Ticket ${order.id}</title>
+          <style>
+            body { font-family: monospace; padding: 20px; width: 300px; }
+            h2 { text-align: center; margin-bottom: 5px; }
+            .meta { border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+            .item { display: flex; justify-content: space-between; margin-bottom: 5px; }
+            .total { border-top: 1px dashed #000; pt: 10px; margin-top: 10px; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <h2>MacTea Kitchen</h2>
+          <div class="meta">
+            <div>Order: ${order.id}</div>
+            <div>Table: ${order.tableNo}</div>
+            <div>Customer: ${order.customerName}</div>
+            <div>Time: ${new Date(order.createdAt).toLocaleTimeString()}</div>
+          </div>
+          ${order.items.map(i => `<div class="item"><span>${i.quantity}x ${i.name}</span><span>Rs.${i.price * i.quantity}</span></div>`).join('')}
+          <div class="total">Total: Rs. ${order.total}</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  // Filtered Orders
+  const filteredOrders = orders.filter(o => {
+    const matchStatus = statusFilter === 'all' || o.status.toLowerCase() === statusFilter.toLowerCase();
+    const matchTable = tableFilter === 'all' || o.tableNo.toLowerCase() === tableFilter.toLowerCase();
+    const matchSearch = o.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        o.customerName.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchStatus && matchTable && matchSearch;
+  });
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'New': return <span className="badge badge-new alert-highlight">🔥 New Order</span>;
+      case 'Accepted': return <span className="badge badge-accepted">👍 Accepted</span>;
+      case 'Completed': return <span className="badge badge-completed">✨ Completed</span>;
+      default: return <span className="badge">{status}</span>;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F5ECE1] text-[#2C1A14]">
+      
+      {/* Top Staff Navigation Header */}
+      <header className="bg-[#5C3E2E] text-white sticky top-0 z-30 shadow-md">
+        <div className="mactea-container flex items-center justify-between h-16 px-4">
+          
+          <div className="flex items-center gap-3">
+            <img src="/images/logo.jpg" alt="MacTea Logo" className="w-10 h-10 rounded-full object-cover border border-[#C89445]" />
+            <div>
+              <h1 className="font-serif font-bold text-lg text-white leading-none">
+                MACTEA Staff Admin
+              </h1>
+              <span className="text-[9px] text-[#C89445] font-extrabold uppercase tracking-widest">
+                Real-Time Order Control Center
+              </span>
+            </div>
+          </div>
+
+          {/* Navigation Tabs */}
+          <div className="hidden md:flex items-center gap-1 bg-[#452B1E] p-1 rounded-xl">
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === 'orders' ? 'bg-[#5C3E2E] text-[#C89445] shadow-sm' : 'text-white/80 hover:text-white'
+              }`}
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>Live Orders ({orders.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('menu')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === 'menu' ? 'bg-[#5C3E2E] text-[#C89445] shadow-sm' : 'text-white/80 hover:text-white'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Menu Management</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === 'analytics' ? 'bg-[#5C3E2E] text-[#C89445] shadow-sm' : 'text-white/80 hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Sales & Analytics</span>
+            </button>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-2">
+            
+            {/* Audio Toggle */}
+            <button
+              onClick={() => {
+                setSoundEnabled(!soundEnabled);
+                if (!soundEnabled) playNotificationSound('new_order');
+              }}
+              className={`p-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors ${
+                soundEnabled ? 'bg-[#C89445] text-white' : 'bg-red-500/20 text-red-200'
+              }`}
+              title={soundEnabled ? 'Order sound alert ON' : 'Order sound alert MUTED'}
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+
+            {/* Table QR Codes */}
+            <button
+              onClick={() => setIsQrModalOpen(true)}
+              className="bg-[#452B1E] hover:bg-[#341F15] text-[#C89445] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
+            >
+              <QrCode className="w-4 h-4" />
+              <span className="hidden sm:inline">Table QRs</span>
+            </button>
+
+            {/* Logout / Exit */}
+            <button
+              onClick={onLogout}
+              className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10"
+              title="Return to Customer Menu"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+
+          </div>
+
+        </div>
+      </header>
+
+      {/* Mobile Sub-Navigation Tabs */}
+      <div className="flex md:hidden bg-[#452B1E] p-2 gap-2 text-xs font-bold text-white border-b border-[#5C3E2E]">
+        <button
+          onClick={() => setActiveTab('orders')}
+          className={`flex-1 py-2 rounded-lg ${activeTab === 'orders' ? 'bg-[#5C3E2E] text-[#C89445]' : ''}`}
+        >
+          Live Orders ({orders.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('menu')}
+          className={`flex-1 py-2 rounded-lg ${activeTab === 'menu' ? 'bg-[#5C3E2E] text-[#C89445]' : ''}`}
+        >
+          Menu
+        </button>
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`flex-1 py-2 rounded-lg ${activeTab === 'analytics' ? 'bg-[#5C3E2E] text-[#C89445]' : ''}`}
+        >
+          Analytics
+        </button>
+      </div>
+
+      {/* Main Content Area */}
+      <main className="mactea-container py-6">
+        
+        {/* VIEW 1: LIVE ORDERS */}
+        {activeTab === 'orders' && (
+          <div className="space-y-6">
+            
+            {/* Filter Bar */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E2D2C0] shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+              
+              {/* Search */}
+              <div className="relative w-full md:w-64">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6E5B52]" />
+                <input
+                  type="text"
+                  placeholder="Search order ID or customer..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-[#F5ECE1] border border-[#E2D2C0] rounded-xl text-xs font-semibold focus:outline-none"
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto">
+                <span className="text-[11px] font-bold text-[#8C5E14] uppercase tracking-wider whitespace-nowrap">
+                  Status:
+                </span>
+                {['all', 'New', 'Accepted', 'Completed'].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors capitalize ${
+                      statusFilter === s 
+                        ? 'bg-[#5C3E2E] text-[#C89445]' 
+                        : 'bg-[#F5ECE1] text-[#6E5B52] hover:bg-[#E2D2C0]'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Table Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-[#8C5E14] uppercase tracking-wider">
+                  Table:
+                </span>
+                <select
+                  value={tableFilter}
+                  onChange={(e) => setTableFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-[#F5ECE1] border border-[#E2D2C0] rounded-lg text-xs font-bold text-[#5C3E2E]"
+                >
+                  <option value="all">All Tables</option>
+                  <option value="T1">T1</option>
+                  <option value="T2">T2</option>
+                  <option value="T3">T3</option>
+                  <option value="T4">T4</option>
+                  <option value="T5">T5</option>
+                  <option value="T6">T6</option>
+                </select>
+              </div>
+
+            </div>
+
+            {/* Empty State */}
+            {filteredOrders.length === 0 && (
+              <div className="bg-white p-12 rounded-3xl border border-[#E2D2C0] text-center max-w-md mx-auto">
+                <img src="/images/logo.jpg" alt="MacTea Logo" className="w-16 h-16 rounded-full mx-auto mb-3 object-cover border-2 border-[#5C3E2E]" />
+                <h3 className="text-lg font-bold font-serif text-[#5C3E2E]">No active orders found</h3>
+                <p className="text-xs text-[#6E5B52] mt-1">
+                  New incoming table orders will appear here automatically with sound alerts.
+                </p>
+              </div>
+            )}
+
+            {/* Orders Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredOrders.map((order) => {
+                const isNew = order.status === 'New';
+
+                return (
+                  <div 
+                    key={order.id}
+                    className={`bg-white rounded-3xl border transition-all overflow-hidden flex flex-col justify-between shadow-md ${
+                      isNew 
+                        ? 'border-[#C85A32] ring-4 ring-[#C85A32]/20 alert-highlight' 
+                        : 'border-[#E2D2C0]'
+                    }`}
+                  >
+                    {/* Header info */}
+                    <div className="p-5 bg-[#F5ECE1] border-b border-[#E2D2C0]">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-mono text-base font-extrabold text-[#5C3E2E]">
+                          {order.id}
+                        </span>
+                        {getStatusBadge(order.status)}
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-[#6E5B52]">
+                        <span className="font-bold text-[#5C3E2E] text-sm">
+                          👤 {order.customerName}
+                        </span>
+                        <span className="font-extrabold text-sm font-serif bg-[#5C3E2E] text-[#C89445] px-2.5 py-0.5 rounded-md">
+                          {order.tableNo}
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-[#6E5B52] mt-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-[#C89445]" />
+                        <span>{new Date(order.createdAt).toLocaleTimeString()}</span>
+                      </div>
+                    </div>
+
+                    {/* Ordered Items */}
+                    <div className="p-5 flex-1 space-y-2">
+                      <h4 className="text-[11px] font-bold text-[#8C5E14] uppercase tracking-wider mb-2">
+                        Items Ordered ({order.items.reduce((s, i) => s + i.quantity, 0)})
+                      </h4>
+                      <div className="space-y-1.5 divide-y divide-[#F7EFE5]">
+                        {order.items.map((item, idx) => (
+                          <div key={idx} className="pt-1.5 first:pt-0 flex justify-between items-center text-xs">
+                            <span className="font-bold text-[#5C3E2E]">
+                              <span className="text-[#C89445] font-extrabold mr-1.5">{item.quantity}x</span>
+                              {item.name}
+                            </span>
+                            <span className="font-serif font-bold text-[#6E5B52]">
+                              Rs. {item.price * item.quantity}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-3 border-t border-[#E2D2C0] mt-3 flex justify-between items-center text-sm font-bold">
+                        <span className="text-[#5C3E2E]">Total Amount</span>
+                        <span className="font-serif text-lg text-[#C89445]">Rs. {order.total}</span>
+                      </div>
+                    </div>
+
+                    {/* Action & Removal Controls */}
+                    <div className="p-4 bg-[#F5ECE1] border-t border-[#E2D2C0] space-y-2">
+                      
+                      <div className="space-y-2">
+                        {order.status === 'New' && (
+                          <button
+                            onClick={() => handleUpdateStatus(order.id, 'Accepted')}
+                            className="w-full btn-primary py-2.5 text-xs font-bold shadow-sm"
+                          >
+                            Accept Order 👍
+                          </button>
+                        )}
+
+                        {order.status === 'Accepted' && (
+                          <button
+                            onClick={() => handleUpdateStatus(order.id, 'Completed')}
+                            className="w-full bg-[#2B8A61] hover:bg-[#206849] text-white py-2.5 rounded-full text-xs font-bold shadow-sm flex items-center justify-center gap-1"
+                          >
+                            <CheckCircle2 className="w-4 h-4" /> Mark Completed
+                          </button>
+                        )}
+
+                        {/* Complete & Remove Button */}
+                        <button
+                          onClick={() => handleRemoveOrder(order.id)}
+                          className="w-full bg-red-50 hover:bg-red-100 text-[#C85A32] border border-[#C85A32]/30 py-2 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove from Live Orders</span>
+                        </button>
+                      </div>
+
+                      {/* Print Ticket Button */}
+                      <button
+                        onClick={() => handlePrintTicket(order)}
+                        className="w-full btn-outline py-1.5 text-[11px] flex items-center justify-center gap-1"
+                      >
+                        <Printer className="w-3 h-3" />
+                        <span>Print Kitchen Ticket</span>
+                      </button>
+
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+
+          </div>
+        )}
+
+        {/* VIEW 2: MENU MANAGER */}
+        {activeTab === 'menu' && <MenuManager />}
+
+        {/* VIEW 3: SALES & ANALYTICS */}
+        {activeTab === 'analytics' && <Analytics />}
+
+      </main>
+
+      {/* QR Code Modal */}
+      <QRCodeModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+      />
+
+    </div>
+  );
+}
