@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ShoppingBag, Clock, CheckCircle2, Volume2, VolumeX, 
+  ShoppingBag, Clock, CheckCircle2, 
   Search, RefreshCw, Printer, ShieldCheck, 
-  BookOpen, BarChart3, QrCode, LogOut, Trash2
+  BookOpen, BarChart3, LogOut, Trash2
 } from 'lucide-react';
 import { useOrder } from '../context/OrderContext';
 import MenuManager from './MenuManager';
 import Analytics from './Analytics';
-import QRCodeModal from './QRCodeModal';
 
 export default function AdminDashboard({ onLogout }) {
   const { playNotificationSound } = useOrder();
@@ -15,8 +14,6 @@ export default function AdminDashboard({ onLogout }) {
   const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'menu', 'analytics'
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('all');
@@ -34,9 +31,7 @@ export default function AdminDashboard({ onLogout }) {
         if (data.length > 0) {
           const newest = data[0];
           if (lastOrderId && newest.id !== lastOrderId && newest.status === 'New') {
-            if (soundEnabled) {
-              playNotificationSound('new_order');
-            }
+            playNotificationSound('new_order');
           }
           setLastOrderId(newest.id);
         }
@@ -54,7 +49,7 @@ export default function AdminDashboard({ onLogout }) {
     fetchOrders();
     const interval = setInterval(fetchOrders, 3000);
     return () => clearInterval(interval);
-  }, [soundEnabled, lastOrderId]);
+  }, [lastOrderId]);
 
   const handleUpdateStatus = async (orderId, newStatus) => {
     try {
@@ -73,17 +68,21 @@ export default function AdminDashboard({ onLogout }) {
   };
 
   const handleRemoveOrder = async (orderId) => {
-    if (!window.confirm(`Are you sure you want to remove Order ${orderId} from Live Orders?`)) return;
+    // Immediately remove from local state for instant UX
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+
     try {
       const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
         method: 'DELETE'
       });
 
-      if (res.ok) {
+      if (!res.ok) {
+        // Re-fetch if delete failed
         fetchOrders();
       }
     } catch (e) {
       console.error('Error deleting order:', e);
+      fetchOrders();
     }
   };
 
@@ -141,21 +140,21 @@ export default function AdminDashboard({ onLogout }) {
       
       {/* Top Staff Navigation Header */}
       <header className="bg-[#5C3E2E] text-white sticky top-0 z-30 shadow-md">
-        <div className="mactea-container flex items-center justify-between h-16 px-4">
+        <div className="mactea-container flex items-center justify-between h-16 px-3 sm:px-4">
           
-          <div className="flex items-center gap-3">
-            <img src="/images/logo.jpg" alt="MacTea Logo" className="w-10 h-10 rounded-full object-cover border border-[#C89445]" />
+          <div className="flex items-center gap-2.5">
+            <img src="/images/logo.jpg" alt="MacTea Logo" className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#C89445]" />
             <div>
-              <h1 className="font-serif font-bold text-lg text-white leading-none">
+              <h1 className="font-serif font-bold text-base sm:text-lg text-white leading-none">
                 MACTEA Staff Admin
               </h1>
-              <span className="text-[9px] text-[#C89445] font-extrabold uppercase tracking-widest">
+              <span className="text-[9px] text-[#C89445] font-extrabold uppercase tracking-widest block mt-0.5">
                 Real-Time Order Control Center
               </span>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
+          {/* Desktop Navigation Tabs */}
           <div className="hidden md:flex items-center gap-1 bg-[#452B1E] p-1 rounded-xl">
             <button
               onClick={() => setActiveTab('orders')}
@@ -188,77 +187,52 @@ export default function AdminDashboard({ onLogout }) {
             </button>
           </div>
 
-          {/* Controls */}
+          {/* Header Actions: Logout only (Sound and Table QRs removed as requested) */}
           <div className="flex items-center gap-2">
-            
-            {/* Audio Toggle */}
-            <button
-              onClick={() => {
-                setSoundEnabled(!soundEnabled);
-                if (!soundEnabled) playNotificationSound('new_order');
-              }}
-              className={`p-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors ${
-                soundEnabled ? 'bg-[#C89445] text-white' : 'bg-red-500/20 text-red-200'
-              }`}
-              title={soundEnabled ? 'Order sound alert ON' : 'Order sound alert MUTED'}
-            >
-              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            </button>
-
-            {/* Table QR Codes */}
-            <button
-              onClick={() => setIsQrModalOpen(true)}
-              className="bg-[#452B1E] hover:bg-[#341F15] text-[#C89445] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
-            >
-              <QrCode className="w-4 h-4" />
-              <span className="hidden sm:inline">Table QRs</span>
-            </button>
-
-            {/* Logout / Exit */}
             <button
               onClick={onLogout}
-              className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10"
-              title="Return to Customer Menu"
+              className="bg-[#452B1E] hover:bg-[#341F15] text-[#C89445] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+              title="Exit Admin View"
             >
               <LogOut className="w-4 h-4" />
+              <span>Exit Admin</span>
             </button>
-
           </div>
 
         </div>
       </header>
 
-      {/* Mobile Sub-Navigation Tabs */}
-      <div className="flex md:hidden bg-[#452B1E] p-2 gap-2 text-xs font-bold text-white border-b border-[#5C3E2E]">
+      {/* Mobile Navigation Bar */}
+      <div className="flex md:hidden bg-[#452B1E] p-2 gap-1.5 text-xs font-bold text-white border-b border-[#5C3E2E]">
         <button
           onClick={() => setActiveTab('orders')}
-          className={`flex-1 py-2 rounded-lg ${activeTab === 'orders' ? 'bg-[#5C3E2E] text-[#C89445]' : ''}`}
+          className={`flex-1 py-2 rounded-lg text-center transition-colors ${activeTab === 'orders' ? 'bg-[#5C3E2E] text-[#C89445]' : 'text-white/80'}`}
         >
-          Live Orders ({orders.length})
+          Orders ({orders.length})
         </button>
         <button
           onClick={() => setActiveTab('menu')}
-          className={`flex-1 py-2 rounded-lg ${activeTab === 'menu' ? 'bg-[#5C3E2E] text-[#C89445]' : ''}`}
+          className={`flex-1 py-2 rounded-lg text-center transition-colors ${activeTab === 'menu' ? 'bg-[#5C3E2E] text-[#C89445]' : 'text-white/80'}`}
         >
           Menu
         </button>
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`flex-1 py-2 rounded-lg ${activeTab === 'analytics' ? 'bg-[#5C3E2E] text-[#C89445]' : ''}`}
+          className={`flex-1 py-2 rounded-lg text-center transition-colors ${activeTab === 'analytics' ? 'bg-[#5C3E2E] text-[#C89445]' : 'text-white/80'}`}
         >
           Analytics
         </button>
       </div>
 
       {/* Main Content Area */}
-      <main className="mactea-container py-6">
+      <main className="mactea-container py-4 sm:py-6 px-3 sm:px-4">
         
         {/* VIEW 1: LIVE ORDERS */}
         {activeTab === 'orders' && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             
             {/* Filter Bar */}
-            <div className="bg-white p-4 rounded-2xl border border-[#E2D2C0] shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-[#E2D2C0] shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
               
               {/* Search */}
               <div className="relative w-full md:w-64">
@@ -273,15 +247,15 @@ export default function AdminDashboard({ onLogout }) {
               </div>
 
               {/* Status Filter */}
-              <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto">
-                <span className="text-[11px] font-bold text-[#8C5E14] uppercase tracking-wider whitespace-nowrap">
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+                <span className="text-[11px] font-bold text-[#8C5E14] uppercase tracking-wider whitespace-nowrap mr-1">
                   Status:
                 </span>
                 {['all', 'New', 'Accepted', 'Completed'].map((s) => (
                   <button
                     key={s}
                     onClick={() => setStatusFilter(s)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors capitalize ${
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors capitalize whitespace-nowrap ${
                       statusFilter === s 
                         ? 'bg-[#5C3E2E] text-[#C89445]' 
                         : 'bg-[#F5ECE1] text-[#6E5B52] hover:bg-[#E2D2C0]'
@@ -293,14 +267,14 @@ export default function AdminDashboard({ onLogout }) {
               </div>
 
               {/* Table Filter */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full md:w-auto">
                 <span className="text-[11px] font-bold text-[#8C5E14] uppercase tracking-wider">
                   Table:
                 </span>
                 <select
                   value={tableFilter}
                   onChange={(e) => setTableFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-[#F5ECE1] border border-[#E2D2C0] rounded-lg text-xs font-bold text-[#5C3E2E]"
+                  className="px-3 py-1.5 bg-[#F5ECE1] border border-[#E2D2C0] rounded-lg text-xs font-bold text-[#5C3E2E] flex-1 md:flex-initial"
                 >
                   <option value="all">All Tables</option>
                   <option value="T1">T1</option>
@@ -316,17 +290,17 @@ export default function AdminDashboard({ onLogout }) {
 
             {/* Empty State */}
             {filteredOrders.length === 0 && (
-              <div className="bg-white p-12 rounded-3xl border border-[#E2D2C0] text-center max-w-md mx-auto">
+              <div className="bg-white p-10 sm:p-12 rounded-3xl border border-[#E2D2C0] text-center max-w-md mx-auto">
                 <img src="/images/logo.jpg" alt="MacTea Logo" className="w-16 h-16 rounded-full mx-auto mb-3 object-cover border-2 border-[#5C3E2E]" />
                 <h3 className="text-lg font-bold font-serif text-[#5C3E2E]">No active orders found</h3>
                 <p className="text-xs text-[#6E5B52] mt-1">
-                  New incoming table orders will appear here automatically with sound alerts.
+                  New incoming table orders will appear here automatically.
                 </p>
               </div>
             )}
 
             {/* Orders Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {filteredOrders.map((order) => {
                 const isNew = order.status === 'New';
 
@@ -340,7 +314,7 @@ export default function AdminDashboard({ onLogout }) {
                     }`}
                   >
                     {/* Header info */}
-                    <div className="p-5 bg-[#F5ECE1] border-b border-[#E2D2C0]">
+                    <div className="p-4 sm:p-5 bg-[#F5ECE1] border-b border-[#E2D2C0]">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-mono text-base font-extrabold text-[#5C3E2E]">
                           {order.id}
@@ -364,7 +338,7 @@ export default function AdminDashboard({ onLogout }) {
                     </div>
 
                     {/* Ordered Items */}
-                    <div className="p-5 flex-1 space-y-2">
+                    <div className="p-4 sm:p-5 flex-1 space-y-2">
                       <h4 className="text-[11px] font-bold text-[#8C5E14] uppercase tracking-wider mb-2">
                         Items Ordered ({order.items.reduce((s, i) => s + i.quantity, 0)})
                       </h4>
@@ -389,7 +363,7 @@ export default function AdminDashboard({ onLogout }) {
                     </div>
 
                     {/* Action & Removal Controls */}
-                    <div className="p-4 bg-[#F5ECE1] border-t border-[#E2D2C0] space-y-2">
+                    <div className="p-3.5 sm:p-4 bg-[#F5ECE1] border-t border-[#E2D2C0] space-y-2">
                       
                       <div className="space-y-2">
                         {order.status === 'New' && (
@@ -410,10 +384,10 @@ export default function AdminDashboard({ onLogout }) {
                           </button>
                         )}
 
-                        {/* Complete & Remove Button */}
+                        {/* Remove Button - Instantly deletes order from Live Orders */}
                         <button
                           onClick={() => handleRemoveOrder(order.id)}
-                          className="w-full bg-red-50 hover:bg-red-100 text-[#C85A32] border border-[#C85A32]/30 py-2 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                          className="w-full bg-red-50 hover:bg-red-100 text-[#C85A32] border border-[#C85A32]/30 py-2.5 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                           <span>Remove from Live Orders</span>
@@ -446,12 +420,6 @@ export default function AdminDashboard({ onLogout }) {
         {activeTab === 'analytics' && <Analytics />}
 
       </main>
-
-      {/* QR Code Modal */}
-      <QRCodeModal
-        isOpen={isQrModalOpen}
-        onClose={() => setIsQrModalOpen(false)}
-      />
 
     </div>
   );

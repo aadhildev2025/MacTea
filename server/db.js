@@ -97,6 +97,18 @@ function writeLocalJsonDb(data) {
   } catch (err) {}
 }
 
+// Helper to construct exact + case-insensitive regex query
+function buildIdQuery(id) {
+  const cleanId = id.trim();
+  const escaped = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return {
+    $or: [
+      { id: cleanId },
+      { id: new RegExp(`^${escaped}$`, 'i') }
+    ]
+  };
+}
+
 // Public DB API
 async function getMenu() {
   await connectDb();
@@ -128,7 +140,7 @@ async function addMenuItem(itemData) {
 async function updateMenuItem(id, updates) {
   await connectDb();
   if (isMongoConnected) {
-    const updated = await MenuItem.findOneAndUpdate({ id }, updates, { new: true }).lean();
+    const updated = await MenuItem.findOneAndUpdate(buildIdQuery(id), updates, { new: true }).lean();
     return updated;
   }
   const db = readLocalJsonDb();
@@ -144,7 +156,7 @@ async function updateMenuItem(id, updates) {
 async function deleteMenuItem(id) {
   await connectDb();
   if (isMongoConnected) {
-    await MenuItem.deleteOne({ id });
+    await MenuItem.deleteOne(buildIdQuery(id));
     return true;
   }
   const db = readLocalJsonDb();
@@ -180,7 +192,7 @@ async function getOrders(filters = {}) {
 async function getOrderById(id) {
   await connectDb();
   if (isMongoConnected) {
-    const order = await Order.findOne({ id: new RegExp(`^${id}$`, 'i') }).lean();
+    const order = await Order.findOne(buildIdQuery(id)).lean();
     return order;
   }
   const db = readLocalJsonDb();
@@ -204,7 +216,7 @@ async function updateOrderStatus(id, status) {
   await connectDb();
   if (isMongoConnected) {
     const updated = await Order.findOneAndUpdate(
-      { id: new RegExp(`^${id}$`, 'i') },
+      buildIdQuery(id),
       { status, updatedAt: new Date() },
       { new: true }
     ).lean();
@@ -224,7 +236,7 @@ async function updateOrderStatus(id, status) {
 async function deleteOrder(id) {
   await connectDb();
   if (isMongoConnected) {
-    const res = await Order.deleteOne({ id: new RegExp(`^${id}$`, 'i') });
+    const res = await Order.deleteOne(buildIdQuery(id));
     return res.deletedCount > 0;
   }
   const db = readLocalJsonDb();
