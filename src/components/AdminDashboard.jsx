@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ShoppingBag, Clock, CheckCircle2, 
-  Search, RefreshCw, Printer, ShieldCheck, 
-  BookOpen, BarChart3, LogOut, Trash2
+  Search, Printer, ShieldCheck, 
+  BookOpen, BarChart3, LogOut, Trash2, Key, X, AlertTriangle, Check
 } from 'lucide-react';
 import { useOrder } from '../context/OrderContext';
 import MenuManager from './MenuManager';
@@ -14,6 +14,12 @@ export default function AdminDashboard({ onLogout }) {
   const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'menu', 'analytics'
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Change Passcode Modal State
+  const [isPasscodeModalOpen, setIsPasscodeModalOpen] = useState(false);
+  const [passcodeData, setPasscodeData] = useState({ currentPasscode: '', newPasscode: '', confirmPasscode: '' });
+  const [passcodeMsg, setPasscodeMsg] = useState({ type: '', text: '' });
+  const [savingPasscode, setSavingPasscode] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('all');
@@ -68,7 +74,6 @@ export default function AdminDashboard({ onLogout }) {
   };
 
   const handleRemoveOrder = async (orderId) => {
-    // Immediately remove from local state for instant UX
     setOrders(prev => prev.filter(o => o.id !== orderId));
 
     try {
@@ -77,12 +82,58 @@ export default function AdminDashboard({ onLogout }) {
       });
 
       if (!res.ok) {
-        // Re-fetch if delete failed
         fetchOrders();
       }
     } catch (e) {
       console.error('Error deleting order:', e);
       fetchOrders();
+    }
+  };
+
+  const handleChangePasscode = async (e) => {
+    e.preventDefault();
+    setPasscodeMsg({ type: '', text: '' });
+
+    if (!passcodeData.currentPasscode) {
+      setPasscodeMsg({ type: 'error', text: 'Please enter your current passcode.' });
+      return;
+    }
+    if (!passcodeData.newPasscode || passcodeData.newPasscode.length < 3) {
+      setPasscodeMsg({ type: 'error', text: 'New passcode must be at least 3 characters long.' });
+      return;
+    }
+    if (passcodeData.newPasscode !== passcodeData.confirmPasscode) {
+      setPasscodeMsg({ type: 'error', text: 'New passcode and confirm passcode do not match.' });
+      return;
+    }
+
+    try {
+      setSavingPasscode(true);
+      const res = await fetch('/api/admin/change-passcode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPasscode: passcodeData.currentPasscode.trim(),
+          newPasscode: passcodeData.newPasscode.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update passcode.');
+      }
+
+      setPasscodeMsg({ type: 'success', text: 'Passcode updated successfully!' });
+      setTimeout(() => {
+        setIsPasscodeModalOpen(false);
+        setPasscodeData({ currentPasscode: '', newPasscode: '', confirmPasscode: '' });
+        setPasscodeMsg({ type: '', text: '' });
+      }, 1500);
+
+    } catch (err) {
+      setPasscodeMsg({ type: 'error', text: err.message });
+    } finally {
+      setSavingPasscode(false);
     }
   };
 
@@ -187,16 +238,27 @@ export default function AdminDashboard({ onLogout }) {
             </button>
           </div>
 
-          {/* Header Actions: Logout only (Sound and Table QRs removed as requested) */}
+          {/* Header Actions: Change Passcode & Exit */}
           <div className="flex items-center gap-2">
+            
+            <button
+              onClick={() => setIsPasscodeModalOpen(true)}
+              className="bg-[#452B1E] hover:bg-[#341F15] text-[#C89445] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+              title="Change Staff Passcode"
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Passcode</span>
+            </button>
+
             <button
               onClick={onLogout}
-              className="bg-[#452B1E] hover:bg-[#341F15] text-[#C89445] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+              className="bg-[#452B1E] hover:bg-[#341F15] text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
               title="Exit Admin View"
             >
-              <LogOut className="w-4 h-4" />
-              <span>Exit Admin</span>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Exit</span>
             </button>
+
           </div>
 
         </div>
@@ -384,7 +446,7 @@ export default function AdminDashboard({ onLogout }) {
                           </button>
                         )}
 
-                        {/* Remove Button - Instantly deletes order from Live Orders */}
+                        {/* Remove Button */}
                         <button
                           onClick={() => handleRemoveOrder(order.id)}
                           className="w-full bg-red-50 hover:bg-red-100 text-[#C85A32] border border-[#C85A32]/30 py-2.5 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
@@ -420,6 +482,102 @@ export default function AdminDashboard({ onLogout }) {
         {activeTab === 'analytics' && <Analytics />}
 
       </main>
+
+      {/* CHANGE PASSCODE MODAL */}
+      {isPasscodeModalOpen && (
+        <div className="modal-backdrop">
+          <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border border-[#E2D2C0] animate-fade-in">
+            
+            <div className="bg-[#5C3E2E] text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Key className="w-5 h-5 text-[#C89445]" />
+                <h3 className="text-lg font-bold font-serif">Change Staff Passcode</h3>
+              </div>
+              <button 
+                onClick={() => setIsPasscodeModalOpen(false)}
+                className="text-white hover:text-[#C89445]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePasscode} className="p-6 space-y-4">
+              
+              {passcodeMsg.text && (
+                <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                  passcodeMsg.type === 'success' 
+                    ? 'bg-[#DCFCE7] text-[#15803D] border border-[#BBF7D0]' 
+                    : 'bg-red-50 text-[#C85A32] border border-red-200'
+                }`}>
+                  {passcodeMsg.type === 'success' ? <Check className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  <span>{passcodeMsg.text}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-[#5C3E2E] uppercase tracking-wider mb-1">
+                  Current Passcode *
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={passcodeData.currentPasscode}
+                  onChange={(e) => setPasscodeData({ ...passcodeData, currentPasscode: e.target.value })}
+                  placeholder="Enter current passcode"
+                  className="w-full px-3.5 py-2.5 bg-[#F5ECE1] border border-[#E2D2C0] rounded-xl text-xs font-semibold focus:outline-none focus:border-[#C89445]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#5C3E2E] uppercase tracking-wider mb-1">
+                  New Passcode *
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={passcodeData.newPasscode}
+                  onChange={(e) => setPasscodeData({ ...passcodeData, newPasscode: e.target.value })}
+                  placeholder="Enter new passcode"
+                  className="w-full px-3.5 py-2.5 bg-[#F5ECE1] border border-[#E2D2C0] rounded-xl text-xs font-semibold focus:outline-none focus:border-[#C89445]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#5C3E2E] uppercase tracking-wider mb-1">
+                  Confirm New Passcode *
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={passcodeData.confirmPasscode}
+                  onChange={(e) => setPasscodeData({ ...passcodeData, confirmPasscode: e.target.value })}
+                  placeholder="Re-enter new passcode"
+                  className="w-full px-3.5 py-2.5 bg-[#F5ECE1] border border-[#E2D2C0] rounded-xl text-xs font-semibold focus:outline-none focus:border-[#C89445]"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPasscodeModalOpen(false)}
+                  className="btn-outline text-xs px-4 py-2"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPasscode}
+                  className="btn-primary text-xs px-5 py-2 font-bold"
+                >
+                  {savingPasscode ? 'Updating...' : 'Update Passcode'}
+                </button>
+              </div>
+
+            </form>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

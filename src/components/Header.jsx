@@ -1,8 +1,8 @@
 import React from 'react';
-import { ShoppingBag, Phone, ShieldCheck, MapPin } from 'lucide-react';
+import { ShoppingBag, Phone, MapPin } from 'lucide-react';
 import { useOrder } from '../context/OrderContext';
 
-export default function Header({ onOpenCart, onOpenAdmin, onScrollToMenu, currentView, setCurrentView }) {
+export default function Header({ onOpenCart, onScrollToMenu, currentView, setCurrentView }) {
   const { cartItemCount, selectedTable, activeOrder } = useOrder();
 
   return (
@@ -59,25 +59,6 @@ export default function Header({ onOpenCart, onOpenAdmin, onScrollToMenu, curren
             >
               <span className="w-2 h-2 rounded-full bg-[#2B8A61] animate-ping" />
               <span className="hidden xs:inline">Track Order</span>
-            </button>
-          )}
-
-          {/* Staff Admin Button */}
-          {currentView === 'customer' ? (
-            <button
-              onClick={onOpenAdmin}
-              className="bg-[#5C3E2E]/10 hover:bg-[#5C3E2E]/20 text-[#5C3E2E] px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 transition-all border border-[#5C3E2E]/20"
-              title="Staff Admin Dashboard"
-            >
-              <ShieldCheck className="w-4 h-4 text-[#C89445]" />
-              <span className="hidden sm:inline">Staff Admin</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => setCurrentView('customer')}
-              className="btn-outline text-xs px-3 py-1.5"
-            >
-              Customer Menu
             </button>
           )}
 

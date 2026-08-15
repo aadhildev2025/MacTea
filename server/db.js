@@ -38,9 +38,15 @@ const categorySchema = new mongoose.Schema({
   icon: String
 });
 
+const adminConfigSchema = new mongoose.Schema({
+  key: { type: String, default: 'passcode', unique: true },
+  value: { type: String, default: 'mactea123' }
+});
+
 const MenuItem = mongoose.models.MenuItem || mongoose.model('MenuItem', menuItemSchema);
 const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 const Category = mongoose.models.Category || mongoose.model('Category', categorySchema);
+const AdminConfig = mongoose.models.AdminConfig || mongoose.model('AdminConfig', adminConfigSchema);
 
 // Connect to MongoDB Atlas
 async function connectDb() {
@@ -75,7 +81,8 @@ function initLocalJsonDb() {
       categories: defaultCategories,
       menuItems: defaultMenuItems,
       tables: defaultTables,
-      orders: []
+      orders: [],
+      adminPasscode: 'mactea123'
     };
     fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf8');
   }
@@ -87,7 +94,7 @@ function readLocalJsonDb() {
     const raw = fs.readFileSync(DB_FILE, 'utf8');
     return JSON.parse(raw);
   } catch (err) {
-    return { categories: defaultCategories, menuItems: defaultMenuItems, tables: defaultTables, orders: [] };
+    return { categories: defaultCategories, menuItems: defaultMenuItems, tables: defaultTables, orders: [], adminPasscode: 'mactea123' };
   }
 }
 
@@ -97,7 +104,6 @@ function writeLocalJsonDb(data) {
   } catch (err) {}
 }
 
-// Helper to construct exact + case-insensitive regex query
 function buildIdQuery(id) {
   const cleanId = id.trim();
   const escaped = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -107,6 +113,33 @@ function buildIdQuery(id) {
       { id: new RegExp(`^${escaped}$`, 'i') }
     ]
   };
+}
+
+// Admin Passcode Management
+async function getAdminPasscode() {
+  await connectDb();
+  if (isMongoConnected) {
+    const config = await AdminConfig.findOne({ key: 'passcode' }).lean();
+    return config ? config.value : 'mactea123';
+  }
+  const db = readLocalJsonDb();
+  return db.adminPasscode || 'mactea123';
+}
+
+async function setAdminPasscode(newPasscode) {
+  await connectDb();
+  if (isMongoConnected) {
+    await AdminConfig.findOneAndUpdate(
+      { key: 'passcode' },
+      { value: newPasscode },
+      { upsert: true, new: true }
+    );
+    return true;
+  }
+  const db = readLocalJsonDb();
+  db.adminPasscode = newPasscode;
+  writeLocalJsonDb(db);
+  return true;
 }
 
 // Public DB API
@@ -251,6 +284,8 @@ async function deleteOrder(id) {
 
 module.exports = {
   connectDb,
+  getAdminPasscode,
+  setAdminPasscode,
   getMenu,
   addMenuItem,
   updateMenuItem,

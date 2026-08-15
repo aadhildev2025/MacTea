@@ -10,7 +10,8 @@ const {
   createOrder, 
   updateOrderStatus, 
   deleteOrder,
-  defaultTables
+  getAdminPasscode,
+  setAdminPasscode
 } = require('../db');
 
 // Helper to broadcast WebSocket events
@@ -232,13 +233,38 @@ router.delete('/orders/:id', async (req, res) => {
   }
 });
 
-// ---------------- ADMIN & ANALYTICS ----------------
-router.post('/admin/login', (req, res) => {
-  const { passcode } = req.body;
-  if (passcode === 'mactea123' || passcode === 'admin') {
-    return res.json({ success: true, token: 'mactea-secret-token-' + Date.now(), role: 'admin' });
+// ---------------- ADMIN AUTH & PASSCODE MANAGEMENT ----------------
+router.post('/admin/login', async (req, res) => {
+  try {
+    const { passcode } = req.body;
+    const storedPasscode = await getAdminPasscode();
+    if (passcode === storedPasscode || passcode === 'admin') {
+      return res.json({ success: true, token: 'mactea-secret-token-' + Date.now(), role: 'admin' });
+    }
+    return res.status(401).json({ error: 'Invalid admin passcode.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  return res.status(401).json({ error: 'Invalid admin passcode.' });
+});
+
+router.post('/admin/change-passcode', async (req, res) => {
+  try {
+    const { currentPasscode, newPasscode } = req.body;
+    const storedPasscode = await getAdminPasscode();
+
+    if (currentPasscode !== storedPasscode && currentPasscode !== 'admin') {
+      return res.status(401).json({ error: 'Current passcode is incorrect.' });
+    }
+
+    if (!newPasscode || newPasscode.trim().length < 3) {
+      return res.status(400).json({ error: 'New passcode must be at least 3 characters long.' });
+    }
+
+    await setAdminPasscode(newPasscode.trim());
+    res.json({ success: true, message: 'Admin passcode updated successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/stats', async (req, res) => {
