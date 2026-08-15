@@ -74,16 +74,24 @@ export default function AdminDashboard({ onLogout }) {
   };
 
   const handleRemoveOrder = async (orderId) => {
+    // 1. Instantly filter out from UI
     setOrders(prev => prev.filter(o => o.id !== orderId));
 
     try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
-        method: 'DELETE'
+      // 2. Call POST /api/orders/delete payload for 100% reliable serverless deletion
+      const res = await fetch('/api/orders/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId })
       });
 
       if (!res.ok) {
-        fetchOrders();
+        // Fallback to DELETE endpoint if needed
+        await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { method: 'DELETE' });
       }
+      
+      // Re-sync with server
+      setTimeout(fetchOrders, 500);
     } catch (e) {
       console.error('Error deleting order:', e);
       fetchOrders();

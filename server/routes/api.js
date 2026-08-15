@@ -130,6 +130,21 @@ router.get('/orders', async (req, res) => {
   }
 });
 
+// Search order by ID query parameter or path parameter
+router.get('/orders/find', async (req, res) => {
+  try {
+    const orderId = req.query.id;
+    if (!orderId) return res.status(400).json({ error: 'Order ID required.' });
+    const order = await getOrderById(orderId);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+    res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/orders/:id', async (req, res) => {
   try {
     const rawId = req.params.id;
@@ -222,15 +237,27 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 });
 
+// Robust Delete Endpoints (supports POST body or DELETE URL path)
+router.post('/orders/delete', async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ error: 'Order ID is required.' });
+
+    await deleteOrder(id);
+    broadcast(req, 'order:deleted', { id });
+    res.json({ success: true, message: `Order ${id} permanently removed.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/orders/:id', async (req, res) => {
   try {
     const rawId = req.params.id;
     const cleanId = decodeURIComponent(rawId);
-    const success = await deleteOrder(cleanId);
+    await deleteOrder(cleanId);
     
-    // Always broadcast order deletion event
     broadcast(req, 'order:deleted', { id: cleanId });
-    
     res.json({ success: true, message: `Order ${cleanId} removed from Live Orders.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
