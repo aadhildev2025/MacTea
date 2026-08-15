@@ -132,7 +132,9 @@ router.get('/orders', async (req, res) => {
 
 router.get('/orders/:id', async (req, res) => {
   try {
-    const order = await getOrderById(req.params.id);
+    const rawId = req.params.id;
+    const cleanId = decodeURIComponent(rawId);
+    const order = await getOrderById(cleanId);
     if (!order) {
       return res.status(404).json({ error: 'Order not found.' });
     }
@@ -199,7 +201,8 @@ router.post('/orders', async (req, res) => {
 });
 
 router.patch('/orders/:id/status', async (req, res) => {
-  const { id } = req.params;
+  const rawId = req.params.id;
+  const cleanId = decodeURIComponent(rawId);
   const { status } = req.body;
 
   const validStatuses = ['New', 'Accepted', 'Completed', 'Cancelled'];
@@ -208,7 +211,7 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 
   try {
-    const updated = await updateOrderStatus(id, status);
+    const updated = await updateOrderStatus(cleanId, status);
     if (!updated) {
       return res.status(404).json({ error: 'Order not found.' });
     }
@@ -220,14 +223,15 @@ router.patch('/orders/:id/status', async (req, res) => {
 });
 
 router.delete('/orders/:id', async (req, res) => {
-  const { id } = req.params;
   try {
-    const success = await deleteOrder(id);
-    if (!success) {
-      return res.status(404).json({ error: 'Order not found.' });
-    }
-    broadcast(req, 'order:deleted', { id });
-    res.json({ success: true, message: `Order ${id} removed from Live Orders.` });
+    const rawId = req.params.id;
+    const cleanId = decodeURIComponent(rawId);
+    const success = await deleteOrder(cleanId);
+    
+    // Always broadcast order deletion event
+    broadcast(req, 'order:deleted', { id: cleanId });
+    
+    res.json({ success: true, message: `Order ${cleanId} removed from Live Orders.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

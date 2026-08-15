@@ -74,7 +74,7 @@ async function connectDb() {
   }
 }
 
-// Initialize Local JSON Fallback
+// Initialize Local JSON Fallback (Clean with 0 seed orders)
 function initLocalJsonDb() {
   if (!fs.existsSync(DB_FILE)) {
     const initialData = {
@@ -104,13 +104,18 @@ function writeLocalJsonDb(data) {
   } catch (err) {}
 }
 
-function buildIdQuery(id) {
-  const cleanId = id.trim();
-  const escaped = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Helper to construct exact + flexible ID query
+function buildIdQuery(rawId) {
+  const cleanId = decodeURIComponent(rawId).trim();
+  const withHash = cleanId.startsWith('#') ? cleanId : `#${cleanId}`;
+  const withoutHash = cleanId.replace(/^#/, '');
+
   return {
     $or: [
       { id: cleanId },
-      { id: new RegExp(`^${escaped}$`, 'i') }
+      { id: withHash },
+      { id: withoutHash },
+      { id: new RegExp(`^${cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
     ]
   };
 }
@@ -229,7 +234,9 @@ async function getOrderById(id) {
     return order;
   }
   const db = readLocalJsonDb();
-  return db.orders.find(o => o.id.toLowerCase() === id.toLowerCase()) || null;
+  const cleanId = decodeURIComponent(id).toLowerCase();
+  const noHash = cleanId.replace(/^#/, '');
+  return db.orders.find(o => o.id.toLowerCase() === cleanId || o.id.toLowerCase().replace(/^#/, '') === noHash) || null;
 }
 
 async function createOrder(orderData) {
@@ -256,7 +263,8 @@ async function updateOrderStatus(id, status) {
     return updated;
   }
   const db = readLocalJsonDb();
-  const order = db.orders.find(o => o.id.toLowerCase() === id.toLowerCase());
+  const cleanId = decodeURIComponent(id).toLowerCase();
+  const order = db.orders.find(o => o.id.toLowerCase() === cleanId || o.id.toLowerCase().replace(/^#/, '') === cleanId.replace(/^#/, ''));
   if (order) {
     order.status = status;
     order.updatedAt = new Date().toISOString();
@@ -266,16 +274,36 @@ async function updateOrderStatus(id, status) {
   return null;
 }
 
-async function deleteOrder(id) {
+async function deleteOrder(rawId) {
+  const cleanId = decodeURIComponent(rawId).trim();
+  const withHash = cleanId.startsWith('#') ? cleanId : `#${cleanId}`;
+  const withoutHash = cleanId.replace(/^#/, '');
+
   await connectDb();
   if (isMongoConnected) {
-    const res = await Order.deleteOne(buildIdQuery(id));
+    const res = await Order.deleteMany({
+      $or: [
+        { id: cleanId },
+        { id: withHash },
+        { id: withoutHash },
+        { id: new RegExp(`^${cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+      ]
+    });
     return res.deletedCount > 0;
   }
+  
   const db = readLocalJsonDb();
-  const idx = db.orders.findIndex(o => o.id.toLowerCase() === id.toLowerCase());
-  if (idx !== -1) {
-    db.orders.splice(idx, 1);
+  const cleanLower = cleanId.toLowerCase();
+  const noHashLower = withoutHash.toLowerCase();
+  const initialLen = db.orders.length;
+
+  db.orders = db.orders.filter(o => {
+    const oLower = o.id.toLowerCase();
+    const oNoHash = o.id.replace(/^#/, '').toLowerCase();
+    return oLower !== cleanLower && oNoHash !== noHashLower;
+  });
+
+  if (db.orders.length !== initialLen) {
     writeLocalJsonDb(db);
     return true;
   }
