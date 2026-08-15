@@ -18,16 +18,25 @@ function MacTeaApp() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
-  // URL Path Routing Support: http://localhost:5173/admin
+  // URL Path & Query Routing Support: /admin or ?admin
   useEffect(() => {
-    const pathname = window.location.pathname;
-    if (pathname.toLowerCase() === '/admin' || pathname.toLowerCase().includes('/admin')) {
-      if (!isAdminLoggedIn) {
-        setIsAdminModalOpen(true);
-      } else {
-        setCurrentView('admin');
+    const checkAdminRoute = () => {
+      const pathname = window.location.pathname.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      const hash = window.location.hash.toLowerCase();
+
+      if (pathname.includes('/admin') || search.includes('admin') || hash.includes('admin')) {
+        if (!isAdminLoggedIn) {
+          setIsAdminModalOpen(true);
+        } else {
+          setCurrentView('admin');
+        }
       }
-    }
+    };
+
+    checkAdminRoute();
+    window.addEventListener('popstate', checkAdminRoute);
+    return () => window.removeEventListener('popstate', checkAdminRoute);
   }, [isAdminLoggedIn]);
 
   const handleScrollToMenu = () => {
@@ -54,7 +63,7 @@ function MacTeaApp() {
         onLogout={() => {
           setIsAdminLoggedIn(false);
           setCurrentView('customer');
-          if (window.location.pathname === '/admin') {
+          if (window.location.pathname.includes('/admin')) {
             window.history.pushState({}, '', '/');
           }
         }}
@@ -74,10 +83,10 @@ function MacTeaApp() {
         setCurrentView={setCurrentView}
       />
 
-      {/* Main Content: 100% Focused on Menu (No Hero, No How-It-Works, No Product Images) */}
+      {/* Main Content: 100% Focused on Menu */}
       <main className="flex-1">
         
-        {/* Active Order Live Tracker Banner (Persists until staff removes order) */}
+        {/* Active Order Live Tracker Banner */}
         {activeOrder && (
           <OrderTracker 
             order={activeOrder} 
@@ -92,8 +101,6 @@ function MacTeaApp() {
         <MenuSection />
 
       </main>
-
-      {/* NO FOOTER AS REQUESTED */}
 
       {/* Cart Drawer */}
       <CartDrawer
@@ -116,12 +123,12 @@ function MacTeaApp() {
         }}
       />
 
-      {/* Admin Login Modal (Triggered by /admin URL or header Shield icon) */}
+      {/* Admin Login Modal (Triggered by /admin URL or direct navigation) */}
       <AdminLogin
         isOpen={isAdminModalOpen}
         onClose={() => {
           setIsAdminModalOpen(false);
-          if (window.location.pathname === '/admin') {
+          if (window.location.pathname.includes('/admin')) {
             window.history.pushState({}, '', '/');
           }
         }}
