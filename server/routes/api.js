@@ -173,28 +173,12 @@ router.post('/orders', async (req, res) => {
   }
 
   try {
-    const existingOrders = await getOrders();
     const now = new Date();
     const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-    // Prevent duplicate orders within 30s
-    const recentDuplicate = existingOrders.find(o => {
-      const timeDiffSec = (now - new Date(o.createdAt)) / 1000;
-      return o.tableNo === tableNo &&
-        o.customerName.toLowerCase() === customerName.trim().toLowerCase() &&
-        o.total === total &&
-        timeDiffSec < 30;
-    });
-
-    if (recentDuplicate) {
-      return res.status(409).json({
-        error: 'Order already placed recently! Please wait or view your active order.',
-        existingOrder: recentDuplicate
-      });
-    }
-
-    const nextNum = 1000 + existingOrders.length + Math.floor(Math.random() * 90 + 10);
-    const orderId = `#MT-${nextNum}`;
+    const timestampSuffix = Date.now().toString().slice(-4);
+    const randomSuffix = Math.floor(Math.random() * 89 + 10);
+    const orderId = `#MT-${timestampSuffix}${randomSuffix}`;
 
     const newOrder = await createOrder({
       id: orderId,
@@ -203,6 +187,7 @@ router.post('/orders', async (req, res) => {
       items,
       total,
       status: 'New',
+      isArchived: false,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
     });
