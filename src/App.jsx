@@ -177,7 +177,8 @@ function MacTeaApp() {
         isOpen={isAdminModalOpen}
         onClose={() => {
           setIsAdminModalOpen(false);
-          if (window.location.pathname.includes('/admin')) {
+          const isLogged = localStorage.getItem('mactea_admin_logged_in') === 'true';
+          if (window.location.pathname.includes('/admin') && !isLogged) {
             window.history.pushState({}, '', '/');
           }
         }}

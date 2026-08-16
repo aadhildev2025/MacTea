@@ -82,6 +82,9 @@ export default function AdminDashboard({ onLogout, onExit }) {
   }, [lastOrderId]);
 
   const handleUpdateStatus = async (orderId, newStatus) => {
+    // Instant optimistic update in local state
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus, updatedAt: new Date().toISOString() } : o));
+
     try {
       const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/status`, {
         method: 'PATCH',
@@ -94,28 +97,24 @@ export default function AdminDashboard({ onLogout, onExit }) {
       }
     } catch (e) {
       console.error('Error updating status:', e);
+      fetchOrders();
     }
   };
 
   const handleRemoveOrder = async (orderId) => {
-    // 1. Instantly filter out from UI
+    // Instant optimistic removal from UI
     setOrders(prev => prev.filter(o => o.id !== orderId));
 
     try {
-      // 2. Call POST /api/orders/delete payload for 100% reliable serverless deletion
-      const res = await fetch('/api/orders/delete', {
+      await fetch('/api/orders/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: orderId })
       });
 
-      if (!res.ok) {
-        // Fallback to DELETE endpoint if needed
-        await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { method: 'DELETE' });
-      }
-      
-      // Re-sync with server
-      setTimeout(fetchOrders, 500);
+      await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { method: 'DELETE' });
+
+      setTimeout(fetchOrders, 300);
     } catch (e) {
       console.error('Error deleting order:', e);
       fetchOrders();

@@ -105,7 +105,11 @@ export function OrderProvider({ children }) {
     if (!targetId) return;
 
     try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(targetId)}`);
+      let res = await fetch(`/api/orders/${encodeURIComponent(targetId)}`);
+      if (!res.ok && res.status === 404) {
+        res = await fetch(`/api/orders/find?id=${encodeURIComponent(targetId)}`);
+      }
+
       if (res.ok) {
         const updated = await res.json();
         setActiveOrder(updated);
@@ -127,12 +131,12 @@ export function OrderProvider({ children }) {
     }
   };
 
-  // Poll active order status every 4s to reflect staff updates or order removal
+  // Poll active order status every 3s to reflect staff updates or order removal
   useEffect(() => {
     if (!activeOrder?.id) return;
     const interval = setInterval(() => {
       checkOrderStatus(activeOrder.id);
-    }, 4000);
+    }, 3000);
     return () => clearInterval(interval);
   }, [activeOrder?.id]);
 

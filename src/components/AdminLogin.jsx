@@ -26,7 +26,6 @@ export default function AdminLogin({ isOpen, onClose, onLoginSuccess }) {
       }
 
       onLoginSuccess(data.token);
-      onClose();
     } catch (err) {
       setError(err.message);
     } finally {

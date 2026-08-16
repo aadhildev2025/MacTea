@@ -48,16 +48,37 @@ const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 const Category = mongoose.models.Category || mongoose.model('Category', categorySchema);
 const AdminConfig = mongoose.models.AdminConfig || mongoose.model('AdminConfig', adminConfigSchema);
 
+let cachedConnPromise = null;
+const TMP_DB_FILE = path.join('/tmp', 'mactea_data.json');
+let memoryDb = null;
+
 // Connect to MongoDB Atlas
 async function connectDb() {
-  if (isMongoConnected || mongoose.connection.readyState === 1) {
-    isMongoConnected = true;
-    return;
+  if (isMongoConnected && mongoose.connection.readyState === 1) {
+    return mongoose.connection;
   }
+  if (mongoose.connection.readyState === 1) {
+    isMongoConnected = true;
+    return mongoose.connection;
+  }
+  if (cachedConnPromise) {
+    try {
+      await cachedConnPromise;
+      if (mongoose.connection.readyState === 1) {
+        isMongoConnected = true;
+        return mongoose.connection;
+      }
+    } catch (e) {}
+  }
+
   try {
-    await mongoose.connect(MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000
+    cachedConnPromise = mongoose.connect(MONGODB_URI, {
+      bufferCommands: false,
+      serverSelectionTimeoutMS: 3000,
+      connectTimeoutMS: 3000,
+      maxPoolSize: 10
     });
+    await cachedConnPromise;
     isMongoConnected = true;
     console.log('🍃 Connected to MongoDB Atlas successfully.');
 
@@ -68,37 +89,51 @@ async function connectDb() {
       await MenuItem.insertMany(defaultMenuItems);
       await Category.insertMany(defaultCategories);
     }
+    return mongoose.connection;
   } catch (err) {
     console.warn('MongoDB connection error, falling back to local JSON database:', err.message);
     isMongoConnected = false;
+    cachedConnPromise = null;
   }
 }
 
-// Initialize Local JSON Fallback (Clean with 0 seed orders)
-function initLocalJsonDb() {
-  if (!fs.existsSync(DB_FILE)) {
-    const initialData = {
-      categories: defaultCategories,
-      menuItems: defaultMenuItems,
-      tables: defaultTables,
-      orders: [],
-      adminPasscode: 'mactea123'
-    };
-    fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf8');
-  }
-}
-
+// Initialize Local JSON Fallback with /tmp support for serverless
 function readLocalJsonDb() {
-  initLocalJsonDb();
+  if (memoryDb) return memoryDb;
+
   try {
-    const raw = fs.readFileSync(DB_FILE, 'utf8');
-    return JSON.parse(raw);
-  } catch (err) {
-    return { categories: defaultCategories, menuItems: defaultMenuItems, tables: defaultTables, orders: [], adminPasscode: 'mactea123' };
-  }
+    if (fs.existsSync(TMP_DB_FILE)) {
+      const raw = fs.readFileSync(TMP_DB_FILE, 'utf8');
+      memoryDb = JSON.parse(raw);
+      return memoryDb;
+    }
+  } catch (e) {}
+
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, 'utf8');
+      memoryDb = JSON.parse(raw);
+      return memoryDb;
+    }
+  } catch (e) {}
+
+  memoryDb = {
+    categories: defaultCategories,
+    menuItems: defaultMenuItems,
+    tables: defaultTables,
+    orders: [],
+    adminPasscode: 'mactea123'
+  };
+  return memoryDb;
 }
 
 function writeLocalJsonDb(data) {
+  memoryDb = data;
+  try {
+    fs.writeFileSync(TMP_DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+    return;
+  } catch (err) {}
+
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (err) {}
@@ -259,19 +294,38 @@ async function getOrderById(id) {
 }
 
 async function createOrder(orderData) {
+  const db = readLocalJsonDb();
+  if (db && Array.isArray(db.orders)) {
+    const exists = db.orders.some(o => o.id === orderData.id);
+    if (!exists) {
+      db.orders.unshift(orderData);
+      writeLocalJsonDb(db);
+    }
+  }
+
   await connectDb();
   if (isMongoConnected) {
     const newOrder = new Order(orderData);
     await newOrder.save();
     return newOrder.toObject();
   }
-  const db = readLocalJsonDb();
-  db.orders.unshift(orderData);
-  writeLocalJsonDb(db);
   return orderData;
 }
 
 async function updateOrderStatus(id, status) {
+  const cleanId = decodeURIComponent(id).toLowerCase();
+  const db = readLocalJsonDb();
+  let localUpdated = null;
+  if (db && Array.isArray(db.orders)) {
+    const order = db.orders.find(o => (o.id || '').toLowerCase() === cleanId || (o.id || '').toLowerCase().replace(/^#/, '') === cleanId.replace(/^#/, ''));
+    if (order) {
+      order.status = status;
+      order.updatedAt = new Date().toISOString();
+      writeLocalJsonDb(db);
+      localUpdated = order;
+    }
+  }
+
   await connectDb();
   if (isMongoConnected) {
     const updated = await Order.findOneAndUpdate(
@@ -279,28 +333,31 @@ async function updateOrderStatus(id, status) {
       { status, updatedAt: new Date() },
       { new: true }
     ).lean();
-    return updated;
+    return updated || localUpdated;
   }
-  const db = readLocalJsonDb();
-  const cleanId = decodeURIComponent(id).toLowerCase();
-  const order = db.orders.find(o => o.id.toLowerCase() === cleanId || o.id.toLowerCase().replace(/^#/, '') === cleanId.replace(/^#/, ''));
-  if (order) {
-    order.status = status;
-    order.updatedAt = new Date().toISOString();
-    writeLocalJsonDb(db);
-    return order;
-  }
-  return null;
+  return localUpdated;
 }
 
 async function deleteOrder(rawId) {
   const cleanId = decodeURIComponent(rawId).trim();
   const withHash = cleanId.startsWith('#') ? cleanId : `#${cleanId}`;
   const withoutHash = cleanId.replace(/^#/, '');
+  const cleanLower = cleanId.toLowerCase();
+  const noHashLower = withoutHash.toLowerCase();
+
+  const db = readLocalJsonDb();
+  if (db && Array.isArray(db.orders)) {
+    db.orders = db.orders.filter(o => {
+      const oLower = (o.id || '').toLowerCase();
+      const oNoHash = (o.id || '').replace(/^#/, '').toLowerCase();
+      return oLower !== cleanLower && oNoHash !== noHashLower;
+    });
+    writeLocalJsonDb(db);
+  }
 
   await connectDb();
   if (isMongoConnected) {
-    const res = await Order.deleteMany({
+    await Order.deleteMany({
       $or: [
         { id: cleanId },
         { id: withHash },
@@ -308,25 +365,8 @@ async function deleteOrder(rawId) {
         { id: new RegExp(`^${cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
       ]
     });
-    return res.deletedCount > 0;
   }
-  
-  const db = readLocalJsonDb();
-  const cleanLower = cleanId.toLowerCase();
-  const noHashLower = withoutHash.toLowerCase();
-  const initialLen = db.orders.length;
-
-  db.orders = db.orders.filter(o => {
-    const oLower = o.id.toLowerCase();
-    const oNoHash = o.id.replace(/^#/, '').toLowerCase();
-    return oLower !== cleanLower && oNoHash !== noHashLower;
-  });
-
-  if (db.orders.length !== initialLen) {
-    writeLocalJsonDb(db);
-    return true;
-  }
-  return false;
+  return true;
 }
 
 module.exports = {
