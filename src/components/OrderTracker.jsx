@@ -3,7 +3,7 @@ import { CheckCircle2, Clock, Sparkles, ArrowLeft, RefreshCw } from 'lucide-reac
 import { useOrder } from '../context/OrderContext';
 
 export default function OrderTracker({ order, onReturnMenu }) {
-  const { activeOrder, setActiveOrder, checkOrderStatus } = useOrder();
+  const { activeOrder, setActiveOrder, checkOrderStatus, setSelectedTable } = useOrder();
   const currentOrder = activeOrder || order;
 
   const [refreshing, setRefreshing] = useState(false);
@@ -80,31 +80,41 @@ export default function OrderTracker({ order, onReturnMenu }) {
 
               {/* Progress Bar */}
               <div className="relative flex items-center justify-between mb-6 px-4">
-                <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-[#E2D2C0] z-0" />
+                <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1.5 bg-[#E2D2C0] z-0 rounded-full" />
                 <div 
-                  className="absolute left-6 top-1/2 -translate-y-1/2 h-1 bg-[#C89445] z-0 transition-all duration-500" 
-                  style={{ width: `${(currentIndex / 2) * 82}%` }}
+                  className={`absolute left-6 top-1/2 -translate-y-1/2 h-1.5 z-0 transition-all duration-500 rounded-full ${
+                    currentIndex === 2 ? 'bg-[#2B8A61]' : 'bg-[#C89445]'
+                  }`} 
+                  style={{ width: `${Math.min((currentIndex / 2) * 100, 100)}%` }}
                 />
 
                 {statusSteps.map((step, idx) => {
                   const isDone = idx <= currentIndex;
                   const isCurrent = idx === currentIndex;
+                  const isCompletedOrder = currentIndex === 2;
                   const StepIcon = step.icon;
+
+                  let circleStyle = 'bg-[#F5ECE1] text-[#6E5B52] border border-[#E2D2C0]';
+                  if (isDone) {
+                    if (isCompletedOrder) {
+                      circleStyle = 'bg-[#2B8A61] text-white ring-4 ring-[#2B8A61]/30 scale-110 shadow-md';
+                    } else if (isCurrent) {
+                      circleStyle = 'bg-[#5C3E2E] text-[#C89445] ring-4 ring-[#C89445]/40 scale-110 shadow-md';
+                    } else {
+                      circleStyle = 'bg-[#C89445] text-white';
+                    }
+                  }
 
                   return (
                     <div key={idx} className="relative z-10 flex flex-col items-center">
                       <div 
-                        className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
-                          isCurrent 
-                            ? 'bg-[#5C3E2E] text-[#C89445] ring-4 ring-[#C89445]/40 scale-110 shadow-md' 
-                            : isDone 
-                              ? 'bg-[#C89445] text-white' 
-                              : 'bg-[#F5ECE1] text-[#6E5B52]'
-                        }`}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs transition-all ${circleStyle}`}
                       >
                         <StepIcon className="w-5 h-5" />
                       </div>
-                      <span className={`text-[11px] font-extrabold mt-2 ${isCurrent ? 'text-[#5C3E2E]' : 'text-[#6E5B52]'}`}>
+                      <span className={`text-[11px] font-extrabold mt-2 ${
+                        isCompletedOrder ? 'text-[#2B8A61]' : (isCurrent ? 'text-[#5C3E2E]' : 'text-[#6E5B52]')
+                      }`}>
                         {step.label}
                       </span>
                     </div>
@@ -113,9 +123,15 @@ export default function OrderTracker({ order, onReturnMenu }) {
               </div>
 
               {/* Current Status Message Box */}
-              <div className="bg-[#F5ECE1] p-4 rounded-2xl border border-[#E2D2C0] text-center">
-                <p className="text-xs text-[#8C5E14] font-bold uppercase tracking-wider">Status Update</p>
-                <p className="text-base font-bold text-[#5C3E2E] mt-0.5">
+              <div className={`p-4 rounded-2xl border text-center transition-all ${
+                currentIndex === 2 
+                  ? 'bg-[#DCFCE7] border-[#2B8A61]/40 text-[#15803D]' 
+                  : 'bg-[#F5ECE1] border-[#E2D2C0] text-[#5C3E2E]'
+              }`}>
+                <p className={`text-xs font-bold uppercase tracking-wider ${currentIndex === 2 ? 'text-[#15803D]' : 'text-[#8C5E14]'}`}>
+                  Status Update
+                </p>
+                <p className="text-base font-bold mt-0.5">
                   {statusSteps[currentIndex]?.desc}
                 </p>
               </div>
@@ -167,6 +183,10 @@ export default function OrderTracker({ order, onReturnMenu }) {
               <button
                 onClick={() => {
                   setActiveOrder(null);
+                  localStorage.removeItem('mactea_active_order');
+                  localStorage.removeItem('mactea_active_order_id');
+                  if (setSelectedTable) setSelectedTable('');
+                  localStorage.removeItem('mactea_selected_table');
                   if (onReturnMenu) onReturnMenu();
                 }}
                 className="w-full btn-primary py-3 text-xs font-bold flex items-center justify-center gap-2"

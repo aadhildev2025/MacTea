@@ -62,14 +62,14 @@ export default function Header({ onOpenCart, onScrollToMenu, currentView, setCur
             </button>
           )}
 
-          {/* Cart Button */}
+          {/* Cart Button (Desktop only - Mobile uses bottom-right floating cart button) */}
           {currentView === 'customer' && (
             <button
               onClick={onOpenCart}
-              className="btn-primary py-2 sm:py-2.5 px-3 sm:px-4 rounded-full flex items-center gap-1.5 sm:gap-2 relative shadow-md"
+              className="!hidden md:!inline-flex bg-[#5C3E2E] hover:bg-[#452B1E] text-white py-2 sm:py-2.5 px-3.5 sm:px-4 rounded-full items-center gap-1.5 sm:gap-2 relative shadow-md transition-all font-semibold text-xs sm:text-sm"
             >
               <ShoppingBag className="w-4 h-4 text-[#C89445]" />
-              <span className="hidden xs:inline text-xs sm:text-sm font-semibold">Cart</span>
+              <span>Cart</span>
               {cartItemCount > 0 && (
                 <span className="bg-[#C89445] text-white font-extrabold text-xs w-5 h-5 rounded-full flex items-center justify-center animate-bounce">
                   {cartItemCount}

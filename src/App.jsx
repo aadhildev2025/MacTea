@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ShoppingBag } from 'lucide-react';
 import { OrderProvider, useOrder } from './context/OrderContext';
 import Header from './components/Header';
 import MenuSection from './components/MenuSection';
@@ -9,35 +10,57 @@ import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 
 function MacTeaApp() {
-  const { activeOrder } = useOrder();
+  const { activeOrder, cartItemCount } = useOrder();
   
-  // Navigation & Modals State
-  const [currentView, setCurrentView] = useState('customer'); // 'customer' or 'admin'
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  // Check if admin has already logged in once on this browser
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
+    return localStorage.getItem('mactea_admin_logged_in') === 'true';
+  });
+
+  const [currentView, setCurrentView] = useState(() => {
+    const pathname = window.location.pathname.toLowerCase();
+    const search = window.location.search.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    const isPathAdmin = pathname.includes('/admin') || search.includes('admin') || hash.includes('admin');
+    const isLogged = localStorage.getItem('mactea_admin_logged_in') === 'true';
+    
+    // Only show admin view if URL specifically contains /admin AND user is authenticated
+    if (isPathAdmin && isLogged) return 'admin';
+    return 'customer';
+  });
+
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
-  // URL Path & Query Routing Support: /admin or ?admin
+  // URL Path & Query Routing Support: strictly show admin view when URL is /admin
   useEffect(() => {
     const checkAdminRoute = () => {
       const pathname = window.location.pathname.toLowerCase();
       const search = window.location.search.toLowerCase();
       const hash = window.location.hash.toLowerCase();
+      const isPathAdmin = pathname.includes('/admin') || search.includes('admin') || hash.includes('admin');
+      const isLogged = localStorage.getItem('mactea_admin_logged_in') === 'true';
 
-      if (pathname.includes('/admin') || search.includes('admin') || hash.includes('admin')) {
-        if (!isAdminLoggedIn) {
-          setIsAdminModalOpen(true);
-        } else {
+      if (isPathAdmin) {
+        if (isLogged) {
+          setIsAdminLoggedIn(true);
           setCurrentView('admin');
+          setIsAdminModalOpen(false);
+        } else {
+          setIsAdminModalOpen(true);
         }
+      } else {
+        // Default home route: ALWAYS show customer menu
+        setCurrentView('customer');
+        setIsAdminModalOpen(false);
       }
     };
 
     checkAdminRoute();
     window.addEventListener('popstate', checkAdminRoute);
     return () => window.removeEventListener('popstate', checkAdminRoute);
-  }, [isAdminLoggedIn]);
+  }, []);
 
   const handleScrollToMenu = () => {
     const el = document.getElementById('menu-section');
@@ -45,28 +68,54 @@ function MacTeaApp() {
   };
 
   const handleOpenAdmin = () => {
-    if (isAdminLoggedIn) {
+    const isLogged = localStorage.getItem('mactea_admin_logged_in') === 'true';
+    if (isLogged || isAdminLoggedIn) {
+      setIsAdminLoggedIn(true);
       setCurrentView('admin');
+      if (!window.location.pathname.includes('/admin')) {
+        window.history.pushState({}, '', '/admin');
+      }
     } else {
       setIsAdminModalOpen(true);
     }
   };
 
-  const handleAdminSuccess = () => {
+  const handleAdminSuccess = (token) => {
+    // Save authentication permanently in localStorage
+    localStorage.setItem('mactea_admin_logged_in', 'true');
+    if (token) localStorage.setItem('mactea_admin_token', token);
     setIsAdminLoggedIn(true);
+    setIsAdminModalOpen(false);
     setCurrentView('admin');
+    if (!window.location.pathname.includes('/admin')) {
+      window.history.pushState({}, '', '/admin');
+    }
+  };
+
+  // Exit back to customer menu without clearing admin authentication
+  const handleAdminExit = () => {
+    setCurrentView('customer');
+    if (window.location.pathname.includes('/admin')) {
+      window.history.pushState({}, '', '/');
+    }
+  };
+
+  // Explicit logout (clears session and requires password again)
+  const handleAdminLogout = () => {
+    localStorage.removeItem('mactea_admin_logged_in');
+    localStorage.removeItem('mactea_admin_token');
+    setIsAdminLoggedIn(false);
+    setCurrentView('customer');
+    if (window.location.pathname.includes('/admin')) {
+      window.history.pushState({}, '', '/');
+    }
   };
 
   if (currentView === 'admin' && isAdminLoggedIn) {
     return (
       <AdminDashboard 
-        onLogout={() => {
-          setIsAdminLoggedIn(false);
-          setCurrentView('customer');
-          if (window.location.pathname.includes('/admin')) {
-            window.history.pushState({}, '', '/');
-          }
-        }}
+        onExit={handleAdminExit}
+        onLogout={handleAdminLogout}
       />
     );
   }
@@ -134,6 +183,21 @@ function MacTeaApp() {
         }}
         onLoginSuccess={handleAdminSuccess}
       />
+      {currentView === 'customer' && (
+        <button
+          onClick={() => setIsCartOpen(true)}
+          className="md:hidden fixed bottom-6 right-5 z-40 bg-[#5C3E2E] text-white px-4 py-3 rounded-full shadow-2xl border-2 border-[#C89445] flex items-center justify-center gap-2 active:scale-95 transition-all shadow-[#5C3E2E]/40"
+          aria-label="Open Cart"
+        >
+          <ShoppingBag className="w-5 h-5 text-[#C89445]" />
+          <span className="text-xs font-extrabold tracking-wide">Cart</span>
+          {cartItemCount > 0 && (
+            <span className="bg-[#C89445] text-white font-black text-[11px] w-5 h-5 rounded-full flex items-center justify-center animate-bounce -ml-0.5 shadow-sm">
+              {cartItemCount}
+            </span>
+          )}
+        </button>
+      )}
 
     </div>
   );

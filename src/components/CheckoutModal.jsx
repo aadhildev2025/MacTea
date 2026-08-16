@@ -178,7 +178,7 @@ export default function CheckoutModal({ isOpen, onClose, onSuccessOrder }) {
             <input
               type="text"
               required
-              placeholder="e.g. Sarah Perera"
+              placeholder="e.g. Aadhil"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               className="w-full px-4 py-3 bg-[#F5ECE1] border border-[#E2D2C0] rounded-xl text-sm font-semibold focus:outline-none focus:border-[#C89445] focus:ring-2 focus:ring-[#C89445]/20"

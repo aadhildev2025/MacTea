@@ -147,22 +147,39 @@ async function setAdminPasscode(newPasscode) {
   return true;
 }
 
+let menuCache = null;
+let lastMenuFetch = 0;
+
+function clearMenuCache() {
+  menuCache = null;
+  lastMenuFetch = 0;
+}
+
 // Public DB API
 async function getMenu() {
+  const now = Date.now();
+  if (menuCache && (now - lastMenuFetch < 15000)) {
+    return menuCache;
+  }
   await connectDb();
   if (isMongoConnected) {
     const items = await MenuItem.find().lean();
     const cats = await Category.find().lean();
-    return {
+    menuCache = {
       menuItems: items.length > 0 ? items : defaultMenuItems,
       categories: cats.length > 0 ? cats : defaultCategories
     };
+    lastMenuFetch = now;
+    return menuCache;
   }
   const db = readLocalJsonDb();
-  return { categories: db.categories, menuItems: db.menuItems };
+  menuCache = { categories: db.categories, menuItems: db.menuItems };
+  lastMenuFetch = now;
+  return menuCache;
 }
 
 async function addMenuItem(itemData) {
+  clearMenuCache();
   await connectDb();
   if (isMongoConnected) {
     const newItem = new MenuItem(itemData);
@@ -176,6 +193,7 @@ async function addMenuItem(itemData) {
 }
 
 async function updateMenuItem(id, updates) {
+  clearMenuCache();
   await connectDb();
   if (isMongoConnected) {
     const updated = await MenuItem.findOneAndUpdate(buildIdQuery(id), updates, { new: true }).lean();
@@ -192,6 +210,7 @@ async function updateMenuItem(id, updates) {
 }
 
 async function deleteMenuItem(id) {
+  clearMenuCache();
   await connectDb();
   if (isMongoConnected) {
     await MenuItem.deleteOne(buildIdQuery(id));

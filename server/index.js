@@ -13,7 +13,8 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve static public folder for images
+// Serve static public folder for images and favicons
+app.use(express.static(path.join(__dirname, '../public')));
 app.use('/images', express.static(path.join(__dirname, '../public/images')));
 app.use(express.static(path.join(__dirname, '../dist')));
 

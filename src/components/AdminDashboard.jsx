@@ -8,10 +8,34 @@ import { useOrder } from '../context/OrderContext';
 import MenuManager from './MenuManager';
 import Analytics from './Analytics';
 
-export default function AdminDashboard({ onLogout }) {
+export default function AdminDashboard({ onLogout, onExit }) {
   const { playNotificationSound } = useOrder();
   
-  const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'menu', 'analytics'
+  // Persist active tab across browser page refreshes
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabFromUrl = params.get('tab');
+      const hash = window.location.hash.replace('#', '').toLowerCase();
+      const savedTab = localStorage.getItem('mactea_admin_active_tab');
+
+      if (['orders', 'menu', 'analytics'].includes(tabFromUrl)) return tabFromUrl;
+      if (['orders', 'menu', 'analytics'].includes(hash)) return hash;
+      if (['orders', 'menu', 'analytics'].includes(savedTab)) return savedTab;
+    } catch (e) {}
+    return 'orders';
+  });
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem('mactea_admin_active_tab', tab);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.replaceState({}, '', url.toString());
+    } catch (e) {}
+  };
+
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -195,30 +219,30 @@ export default function AdminDashboard({ onLogout }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5ECE1] text-[#2C1A14]">
+    <div className="min-h-screen bg-[#F5ECE1] text-[#2C1A14] antialiased">
       
       {/* Top Staff Navigation Header */}
-      <header className="bg-[#5C3E2E] text-white sticky top-0 z-30 shadow-md">
-        <div className="mactea-container flex items-center justify-between h-16 px-3 sm:px-4">
+      <header className="bg-[#452B1E] text-white sticky top-0 z-30 shadow-lg border-b border-[#C89445]/30 backdrop-blur-md">
+        <div className="mactea-container flex items-center justify-between h-16 sm:h-18 px-3 sm:px-4">
           
-          <div className="flex items-center gap-2.5">
-            <img src="/images/logo.jpg" alt="MacTea Logo" className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#C89445]" />
+          <div className="flex items-center gap-3">
+            <img src="/images/logo.jpg" alt="MacTea Logo" className="w-10 h-10 rounded-full object-cover border-2 border-[#C89445] shadow-md shadow-[#C89445]/20" />
             <div>
-              <h1 className="font-serif font-bold text-base sm:text-lg text-white leading-none">
+              <h1 className="font-serif font-extrabold text-base sm:text-lg text-white leading-none tracking-wide">
                 MACTEA Staff Admin
               </h1>
-              <span className="text-[9px] text-[#C89445] font-extrabold uppercase tracking-widest block mt-0.5">
+              <span className="text-[10px] text-[#C89445] font-extrabold uppercase tracking-widest block mt-0.5">
                 Real-Time Order Control Center
               </span>
             </div>
           </div>
 
           {/* Desktop Navigation Tabs */}
-          <div className="hidden md:flex items-center gap-1 bg-[#452B1E] p-1 rounded-xl">
+          <div className="hidden md:flex items-center gap-1.5 bg-[#341F15] p-1.5 rounded-2xl border border-white/5">
             <button
-              onClick={() => setActiveTab('orders')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'orders' ? 'bg-[#5C3E2E] text-[#C89445] shadow-sm' : 'text-white/80 hover:text-white'
+              onClick={() => handleTabChange('orders')}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+                activeTab === 'orders' ? 'bg-[#C89445] text-[#2C1A14] shadow-md' : 'text-white/80 hover:text-white hover:bg-white/5'
               }`}
             >
               <ShoppingBag className="w-4 h-4" />
@@ -226,9 +250,9 @@ export default function AdminDashboard({ onLogout }) {
             </button>
 
             <button
-              onClick={() => setActiveTab('menu')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'menu' ? 'bg-[#5C3E2E] text-[#C89445] shadow-sm' : 'text-white/80 hover:text-white'
+              onClick={() => handleTabChange('menu')}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+                activeTab === 'menu' ? 'bg-[#C89445] text-[#2C1A14] shadow-md' : 'text-white/80 hover:text-white hover:bg-white/5'
               }`}
             >
               <BookOpen className="w-4 h-4" />
@@ -236,9 +260,9 @@ export default function AdminDashboard({ onLogout }) {
             </button>
 
             <button
-              onClick={() => setActiveTab('analytics')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'analytics' ? 'bg-[#5C3E2E] text-[#C89445] shadow-sm' : 'text-white/80 hover:text-white'
+              onClick={() => handleTabChange('analytics')}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+                activeTab === 'analytics' ? 'bg-[#C89445] text-[#2C1A14] shadow-md' : 'text-white/80 hover:text-white hover:bg-white/5'
               }`}
             >
               <BarChart3 className="w-4 h-4" />
@@ -251,7 +275,7 @@ export default function AdminDashboard({ onLogout }) {
             
             <button
               onClick={() => setIsPasscodeModalOpen(true)}
-              className="bg-[#452B1E] hover:bg-[#341F15] text-[#C89445] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+              className="bg-[#341F15] hover:bg-[#25150E] text-[#C89445] px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all border border-[#C89445]/30 shadow-sm"
               title="Change Staff Passcode"
             >
               <Key className="w-3.5 h-3.5" />
@@ -259,9 +283,9 @@ export default function AdminDashboard({ onLogout }) {
             </button>
 
             <button
-              onClick={onLogout}
-              className="bg-[#452B1E] hover:bg-[#341F15] text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
-              title="Exit Admin View"
+              onClick={onExit || onLogout}
+              className="bg-[#341F15] hover:bg-[#C85A32] text-white px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all border border-white/10 shadow-sm"
+              title="Return to Menu"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Exit</span>
@@ -273,29 +297,32 @@ export default function AdminDashboard({ onLogout }) {
       </header>
 
       {/* Mobile Navigation Bar */}
-      <div className="flex md:hidden bg-[#452B1E] p-2 gap-1.5 text-xs font-bold text-white border-b border-[#5C3E2E]">
+      <div className="flex md:hidden bg-[#341F15] p-2 gap-1.5 text-xs font-bold text-white border-b border-[#5C3E2E]">
         <button
-          onClick={() => setActiveTab('orders')}
-          className={`flex-1 py-2 rounded-lg text-center transition-colors ${activeTab === 'orders' ? 'bg-[#5C3E2E] text-[#C89445]' : 'text-white/80'}`}
+          onClick={() => handleTabChange('orders')}
+          className={`flex-1 py-2 rounded-xl text-center transition-colors flex items-center justify-center gap-1 ${activeTab === 'orders' ? 'bg-[#C89445] text-[#2C1A14] font-black' : 'text-white/80'}`}
         >
-          Orders ({orders.length})
+          <ShoppingBag className="w-3.5 h-3.5" />
+          <span>Orders ({orders.length})</span>
         </button>
         <button
-          onClick={() => setActiveTab('menu')}
-          className={`flex-1 py-2 rounded-lg text-center transition-colors ${activeTab === 'menu' ? 'bg-[#5C3E2E] text-[#C89445]' : 'text-white/80'}`}
+          onClick={() => handleTabChange('menu')}
+          className={`flex-1 py-2 rounded-xl text-center transition-colors flex items-center justify-center gap-1 ${activeTab === 'menu' ? 'bg-[#C89445] text-[#2C1A14] font-black' : 'text-white/80'}`}
         >
-          Menu
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Menu</span>
         </button>
         <button
-          onClick={() => setActiveTab('analytics')}
-          className={`flex-1 py-2 rounded-lg text-center transition-colors ${activeTab === 'analytics' ? 'bg-[#5C3E2E] text-[#C89445]' : 'text-white/80'}`}
+          onClick={() => handleTabChange('analytics')}
+          className={`flex-1 py-2 rounded-xl text-center transition-colors flex items-center justify-center gap-1 ${activeTab === 'analytics' ? 'bg-[#C89445] text-[#2C1A14] font-black' : 'text-white/80'}`}
         >
-          Analytics
+          <BarChart3 className="w-3.5 h-3.5" />
+          <span>Analytics</span>
         </button>
       </div>
 
       {/* Main Content Area */}
-      <main className="mactea-container py-4 sm:py-6 px-3 sm:px-4">
+      <main className="mactea-container pt-8 sm:pt-10 pb-8 px-3 sm:px-4">
         
         {/* VIEW 1: LIVE ORDERS */}
         {activeTab === 'orders' && (

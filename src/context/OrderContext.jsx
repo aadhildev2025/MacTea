@@ -3,32 +3,83 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const OrderContext = createContext();
 
 export function OrderProvider({ children }) {
-  const [menuItems, setMenuItems] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [menuItems, setMenuItems] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mactea_cached_menu');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.menuItems && parsed.menuItems.length > 0) {
+          return parsed.menuItems;
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  const [categories, setCategories] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mactea_cached_menu');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.categories && parsed.categories.length > 0) {
+          return parsed.categories;
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
+
   const [cart, setCart] = useState([]);
-  const [selectedTable, setSelectedTable] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [activeOrder, setActiveOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
+  
+  const [selectedTable, setSelectedTable] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mactea_selected_table');
+      if (saved) return saved;
+    } catch (e) {}
+    return '';
+  });
+
+  const [customerName, setCustomerName] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mactea_customer_name');
+      if (saved) return saved;
+    } catch (e) {}
+    return '';
+  });
+
+  const [activeOrder, setActiveOrder] = useState(() => {
+    try {
+      const savedOrder = localStorage.getItem('mactea_active_order');
+      if (savedOrder) return JSON.parse(savedOrder);
+    } catch (e) {}
+    return null;
+  });
+
+  const [loading, setLoading] = useState(() => menuItems.length === 0);
 
   // Check URL query parameters for table auto-selection (?table=T3)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tableParam = params.get('table');
     if (tableParam && /^T[1-6]$/i.test(tableParam)) {
-      setSelectedTable(tableParam.toUpperCase());
+      const formatted = tableParam.toUpperCase();
+      setSelectedTable(formatted);
+      localStorage.setItem('mactea_selected_table', formatted);
     }
   }, []);
 
-  // Fetch menu data from API
-  const fetchMenu = async () => {
+  // Fetch menu data from API without blocking UI if cached items exist
+  const fetchMenu = async (forceShowLoading = false) => {
     try {
-      setLoading(true);
+      if (forceShowLoading || menuItems.length === 0) {
+        setLoading(true);
+      }
       const res = await fetch('/api/menu');
       if (res.ok) {
         const data = await res.json();
         setMenuItems(data.menuItems || []);
         setCategories(data.categories || []);
+        localStorage.setItem('mactea_cached_menu', JSON.stringify(data));
       }
     } catch (err) {
       console.error('Error fetching menu:', err);
@@ -58,9 +109,17 @@ export function OrderProvider({ children }) {
       if (res.ok) {
         const updated = await res.json();
         setActiveOrder(updated);
+        localStorage.setItem('mactea_active_order', JSON.stringify(updated));
+        if (updated.tableNo) {
+          setSelectedTable(updated.tableNo);
+          localStorage.setItem('mactea_selected_table', updated.tableNo);
+        }
       } else if (res.status === 404) {
-        // Order was removed by admin from Live Orders! Clear active order tracking
+        // Order was removed by admin from Live Orders! Clear active order tracking & table selection
         localStorage.removeItem('mactea_active_order_id');
+        localStorage.removeItem('mactea_active_order');
+        localStorage.removeItem('mactea_selected_table');
+        setSelectedTable('');
         setActiveOrder(null);
       }
     } catch (err) {
@@ -81,9 +140,21 @@ export function OrderProvider({ children }) {
   const setAndSaveActiveOrder = (order) => {
     if (order && order.id) {
       localStorage.setItem('mactea_active_order_id', order.id);
+      localStorage.setItem('mactea_active_order', JSON.stringify(order));
+      if (order.tableNo) {
+        setSelectedTable(order.tableNo);
+        localStorage.setItem('mactea_selected_table', order.tableNo);
+      }
+      if (order.customerName) {
+        setCustomerName(order.customerName);
+        localStorage.setItem('mactea_customer_name', order.customerName);
+      }
       setActiveOrder(order);
     } else {
       localStorage.removeItem('mactea_active_order_id');
+      localStorage.removeItem('mactea_active_order');
+      localStorage.removeItem('mactea_selected_table');
+      setSelectedTable('');
       setActiveOrder(null);
     }
   };

@@ -127,7 +127,7 @@ export default function MenuManager() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-2 sm:pt-4 animate-fade-in">
       
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-[#E2D2C0] shadow-sm">
