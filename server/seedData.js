@@ -240,7 +240,7 @@ const defaultOrders = [
     ],
     total: 280,
     status: "New",
-    isArchived: false,
+    isArchived: true,
     createdAt: "2026-08-16T08:30:00.000Z",
     updatedAt: "2026-08-16T08:30:00.000Z"
   },

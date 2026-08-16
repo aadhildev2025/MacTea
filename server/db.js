@@ -263,15 +263,31 @@ async function deleteMenuItem(id) {
   return true;
 }
 
+const globalArchivedIds = new Set();
+
+function markIdArchived(rawId) {
+  if (!rawId) return;
+  const cleanId = decodeURIComponent(rawId).trim().toLowerCase();
+  const noHash = cleanId.replace(/^#/, '');
+  globalArchivedIds.add(cleanId);
+  globalArchivedIds.add(noHash);
+  globalArchivedIds.add(`#${noHash}`);
+}
+
+function isIdArchived(id) {
+  if (!id) return false;
+  const lower = id.toLowerCase();
+  const noHash = id.replace(/^#/, '').toLowerCase();
+  return globalArchivedIds.has(lower) || globalArchivedIds.has(noHash);
+}
+
 async function getOrders(filters = {}) {
   await connectDb();
+  let orders = [];
   if (isMongoConnected) {
     const query = {};
     if (!filters.includeArchived) {
-      query.$or = [
-        { isArchived: { $ne: true } },
-        { isArchived: false }
-      ];
+      query.isArchived = { $ne: true };
     }
     if (filters.status && filters.status !== 'all') {
       query.status = new RegExp(`^${filters.status}$`, 'i');
@@ -279,19 +295,20 @@ async function getOrders(filters = {}) {
     if (filters.table && filters.table !== 'all') {
       query.tableNo = new RegExp(`^${filters.table}$`, 'i');
     }
-    const orders = await Order.find(query).sort({ createdAt: -1 }).lean();
-    return orders;
+    orders = await Order.find(query).sort({ createdAt: -1 }).lean();
+  } else {
+    const db = readLocalJsonDb();
+    orders = [...(db.orders || [])];
+    if (filters.status && filters.status !== 'all') {
+      orders = orders.filter(o => o.status.toLowerCase() === filters.status.toLowerCase());
+    }
+    if (filters.table && filters.table !== 'all') {
+      orders = orders.filter(o => o.tableNo.toLowerCase() === filters.table.toLowerCase());
+    }
   }
-  const db = readLocalJsonDb();
-  let orders = [...(db.orders || [])];
+
   if (!filters.includeArchived) {
-    orders = orders.filter(o => !o.isArchived);
-  }
-  if (filters.status && filters.status !== 'all') {
-    orders = orders.filter(o => o.status.toLowerCase() === filters.status.toLowerCase());
-  }
-  if (filters.table && filters.table !== 'all') {
-    orders = orders.filter(o => o.tableNo.toLowerCase() === filters.table.toLowerCase());
+    orders = orders.filter(o => !o.isArchived && !isIdArchived(o.id));
   }
   return orders;
 }
@@ -355,15 +372,14 @@ async function updateOrderStatus(id, status) {
 
 async function archiveOrder(rawId) {
   const cleanId = decodeURIComponent(rawId).trim();
-  const cleanLower = cleanId.toLowerCase();
-  const noHashLower = cleanId.replace(/^#/, '').toLowerCase();
+  markIdArchived(cleanId);
 
   const db = readLocalJsonDb();
   if (db && Array.isArray(db.orders)) {
     const target = db.orders.find(o => {
       const oLower = (o.id || '').toLowerCase();
       const oNoHash = (o.id || '').replace(/^#/, '').toLowerCase();
-      return oLower === cleanLower || oNoHash === noHashLower;
+      return oLower === cleanId.toLowerCase() || oNoHash === cleanId.replace(/^#/, '').toLowerCase();
     });
     if (target) {
       target.isArchived = true;
