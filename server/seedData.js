@@ -230,8 +230,82 @@ const defaultTables = [
   { id: 'T6', name: 'Table 6', capacity: 6, status: 'Available' }
 ];
 
+const defaultOrders = [
+  {
+    id: "#MT-1055",
+    customerName: "Jafran",
+    tableNo: "T2",
+    items: [
+      { id: "item-1", name: "Ceylon Royal Milk Tea", price: 280, quantity: 1 }
+    ],
+    total: 280,
+    status: "New",
+    isArchived: false,
+    createdAt: "2026-08-16T08:30:00.000Z",
+    updatedAt: "2026-08-16T08:30:00.000Z"
+  },
+  {
+    id: "#MT-1093",
+    customerName: "Aadhil",
+    tableNo: "T1",
+    items: [
+      { id: "item-1", name: "Ceylon Royal Milk Tea", price: 280, quantity: 1 },
+      { id: "item-2", name: "Spiced Ginger Chai", price: 250, quantity: 1 },
+      { id: "item-3", name: "Cardamom & Cinnamon Infusion", price: 260, quantity: 1 }
+    ],
+    total: 790,
+    status: "Completed",
+    isArchived: true,
+    createdAt: "2026-08-16T07:45:00.000Z",
+    updatedAt: "2026-08-16T08:00:00.000Z"
+  },
+  {
+    id: "#MT-1032",
+    customerName: "Aadhil",
+    tableNo: "T1",
+    items: [
+      { id: "item-1", name: "Ceylon Royal Milk Tea", price: 280, quantity: 2 },
+      { id: "item-2", name: "Spiced Ginger Chai", price: 250, quantity: 2 }
+    ],
+    total: 1060,
+    status: "Completed",
+    isArchived: true,
+    createdAt: "2026-08-16T07:00:00.000Z",
+    updatedAt: "2026-08-16T07:15:00.000Z"
+  },
+  {
+    id: "#MT-1001",
+    customerName: "Sarah Perera",
+    tableNo: "T3",
+    items: [
+      { id: "item-1", name: "Ceylon Royal Milk Tea", price: 280, quantity: 2 },
+      { id: "item-12", name: "Spicy Fish Empanada (2 pcs)", price: 280, quantity: 1 }
+    ],
+    total: 840,
+    status: "Completed",
+    isArchived: true,
+    createdAt: "2026-08-16T06:30:00.000Z",
+    updatedAt: "2026-08-16T06:45:00.000Z"
+  },
+  {
+    id: "#MT-1002",
+    customerName: "Dinesh Kumar",
+    tableNo: "T1",
+    items: [
+      { id: "item-6", name: "MacTea Signature Cappuccino", price: 520, quantity: 1 },
+      { id: "item-17", name: "Butter Scones with Clotted Cream & Jam", price: 580, quantity: 1 }
+    ],
+    total: 1100,
+    status: "Completed",
+    isArchived: true,
+    createdAt: "2026-08-16T06:00:00.000Z",
+    updatedAt: "2026-08-16T06:15:00.000Z"
+  }
+];
+
 module.exports = {
   defaultCategories,
   defaultMenuItems,
-  defaultTables
+  defaultTables,
+  defaultOrders
 };

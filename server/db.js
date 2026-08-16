@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
-const { defaultCategories, defaultMenuItems, defaultTables } = require('./seedData');
+const { defaultCategories, defaultMenuItems, defaultTables, defaultOrders } = require('./seedData');
 
 require('dotenv').config();
 
@@ -28,6 +28,7 @@ const orderSchema = new mongoose.Schema({
   items: Array,
   total: Number,
   status: { type: String, default: 'New' },
+  isArchived: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -88,6 +89,11 @@ async function connectDb() {
       console.log('Seeding initial MongoDB Atlas menu items...');
       await MenuItem.insertMany(defaultMenuItems);
       await Category.insertMany(defaultCategories);
+    }
+    const orderCount = await Order.countDocuments();
+    if (orderCount === 0) {
+      console.log('Seeding initial MongoDB Atlas order history...');
+      await Order.insertMany(defaultOrders);
     }
     return mongoose.connection;
   } catch (err) {
@@ -261,6 +267,12 @@ async function getOrders(filters = {}) {
   await connectDb();
   if (isMongoConnected) {
     const query = {};
+    if (!filters.includeArchived) {
+      query.$or = [
+        { isArchived: { $ne: true } },
+        { isArchived: false }
+      ];
+    }
     if (filters.status && filters.status !== 'all') {
       query.status = new RegExp(`^${filters.status}$`, 'i');
     }
@@ -271,7 +283,10 @@ async function getOrders(filters = {}) {
     return orders;
   }
   const db = readLocalJsonDb();
-  let orders = [...db.orders];
+  let orders = [...(db.orders || [])];
+  if (!filters.includeArchived) {
+    orders = orders.filter(o => !o.isArchived);
+  }
   if (filters.status && filters.status !== 'all') {
     orders = orders.filter(o => o.status.toLowerCase() === filters.status.toLowerCase());
   }
@@ -305,7 +320,7 @@ async function createOrder(orderData) {
 
   await connectDb();
   if (isMongoConnected) {
-    const newOrder = new Order(orderData);
+    const newOrder = new Order({ ...orderData, isArchived: false });
     await newOrder.save();
     return newOrder.toObject();
   }
@@ -338,35 +353,37 @@ async function updateOrderStatus(id, status) {
   return localUpdated;
 }
 
-async function deleteOrder(rawId) {
+async function archiveOrder(rawId) {
   const cleanId = decodeURIComponent(rawId).trim();
-  const withHash = cleanId.startsWith('#') ? cleanId : `#${cleanId}`;
-  const withoutHash = cleanId.replace(/^#/, '');
   const cleanLower = cleanId.toLowerCase();
-  const noHashLower = withoutHash.toLowerCase();
+  const noHashLower = cleanId.replace(/^#/, '').toLowerCase();
 
   const db = readLocalJsonDb();
   if (db && Array.isArray(db.orders)) {
-    db.orders = db.orders.filter(o => {
+    const target = db.orders.find(o => {
       const oLower = (o.id || '').toLowerCase();
       const oNoHash = (o.id || '').replace(/^#/, '').toLowerCase();
-      return oLower !== cleanLower && oNoHash !== noHashLower;
+      return oLower === cleanLower || oNoHash === noHashLower;
     });
-    writeLocalJsonDb(db);
+    if (target) {
+      target.isArchived = true;
+      target.updatedAt = new Date().toISOString();
+      writeLocalJsonDb(db);
+    }
   }
 
   await connectDb();
   if (isMongoConnected) {
-    await Order.deleteMany({
-      $or: [
-        { id: cleanId },
-        { id: withHash },
-        { id: withoutHash },
-        { id: new RegExp(`^${cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
-      ]
-    });
+    await Order.updateMany(
+      buildIdQuery(cleanId),
+      { isArchived: true, updatedAt: new Date() }
+    );
   }
   return true;
+}
+
+async function deleteOrder(rawId) {
+  return archiveOrder(rawId);
 }
 
 module.exports = {
@@ -381,8 +398,10 @@ module.exports = {
   getOrderById,
   createOrder,
   updateOrderStatus,
+  archiveOrder,
   deleteOrder,
   defaultCategories,
   defaultMenuItems,
-  defaultTables
+  defaultTables,
+  defaultOrders
 };

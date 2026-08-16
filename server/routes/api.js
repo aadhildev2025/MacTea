@@ -300,7 +300,7 @@ router.post('/admin/change-passcode', async (req, res) => {
 
 router.get('/stats', async (req, res) => {
   try {
-    const orders = await getOrders();
+    const orders = await getOrders({ includeArchived: true });
     const todayStr = new Date().toISOString().split('T')[0];
     const todayOrders = orders.filter(o => o.createdAt && o.createdAt.toString().startsWith(todayStr));
 
